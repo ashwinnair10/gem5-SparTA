@@ -1,0 +1,7 @@
+Import('*')
+
+SimObject('SparTA.py', sim_objects=[
+    'PE_Mul'
+])
+
+Source('PE_Mul.cc')
