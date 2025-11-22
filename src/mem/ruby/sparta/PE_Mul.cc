@@ -14,23 +14,26 @@ namespace gem5{
     {
         std::cout << "[SparTA-MUL] startup. Latency = "
                 << latency << " cycles\n";
-
-        //temporary test
-        startCompute(0);
-
     }
 
-    void PE_Mul::startCompute(int block_id)
+    void PE_Mul::startCompute(float val1,float val2)
     {
-        std::cout << "[SparTA-MUL] Start block " << block_id
-                << " @ tick " << curTick() << "\n";
-
+        operand1=val1;
+        operand2=val2;
+        result=0.0f;
+        std::cout << "[SparTA-MUL] Start -- Operand 1 : "
+                << operand1 << " , Operand 2 : " << operand2
+                << " --  @ tick " << curTick() << "\n";
         schedule(computeEvent, curTick() + latency);
     }
 
     void PE_Mul::finishCompute()
     {
-        std::cout << "[SparTA-MUL] Finished compute @ tick "
-                << curTick() << "\n";
+        result=operand1*operand2;
+        std::cout << "[SparTA-MUL] Finished compute -- Result : "
+                << result << " -- @ tick " << curTick() << "\n";
+        if (callback){
+            callback(result);
+        }
     }
 }
