@@ -1,4 +1,4 @@
-# Copyright (c) 2010, 2017-2018, 2020, 2022 ARM Limited
+# Copyright (c) 2010, 2017-2018, 2020, 2022, 2025 Arm Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -90,6 +90,7 @@ class OpClass(Enum):
         "SimdSha256Hash2",
         "SimdShaSigma2",
         "SimdShaSigma3",
+        "SimdSm4e",
         "SimdPredAlu",
         "Matrix",
         "MatrixMov",
@@ -119,6 +120,14 @@ class OpClass(Enum):
         "SimdExt",
         "SimdFloatExt",
         "SimdConfig",
+        "SimdBf16Add",
+        "SimdBf16Cmp",
+        "SimdBf16Cvt",
+        "SimdBf16DotProd",
+        "SimdBf16MatMultAcc",
+        "SimdBf16Mult",
+        "SimdBf16MultAcc",
+        "Bf16Cvt",
     ]
 
 

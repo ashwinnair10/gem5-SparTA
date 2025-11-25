@@ -55,7 +55,6 @@
 #include "debug/Activity.hh"
 #include "debug/Drain.hh"
 #include "debug/IEW.hh"
-#include "debug/O3PipeView.hh"
 #include "params/BaseO3CPU.hh"
 
 namespace gem5
@@ -1072,9 +1071,8 @@ IEW::dispatchInsts(ThreadID tid)
 
         ++iewStats.dispatchedInsts;
 
-#if TRACING_ON
         inst->dispatchTick = curTick() - inst->fetchTick;
-#endif
+
         ppDispatch->notify(inst);
     }
 
@@ -1534,11 +1532,22 @@ IEW::updateExeInstStats(const DynInstPtr& inst)
 
     cpu->executeStats[tid]->numInsts++;
 
-#if TRACING_ON
-    if (debug::O3PipeView) {
-        inst->completeTick = curTick() - inst->fetchTick;
+    inst->completeTick = curTick() - inst->fetchTick;
+
+    //
+    // ALU Operations
+    //
+    if (inst->isInteger()) {
+        cpu->executeStats[tid]->numIntAluAccesses++;
     }
-#endif
+
+    if (inst->isFloating()) {
+        cpu->executeStats[tid]->numFpAluAccesses++;
+    }
+
+    if (inst->isVector()) {
+        cpu->executeStats[tid]->numVecAluAccesses++;
+    }
 
     //
     //  Control operations
