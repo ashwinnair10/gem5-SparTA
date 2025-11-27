@@ -37,17 +37,22 @@ class MatMul(SimObject):
     cxx_header = "mem/ruby/sparta/MatMul.hh"
     mul = Param.PE_Mul("Multiplier PE")
     acc = Param.PE_Acc("Accumulator PE")
+
+
+class BaselineDriver(SimObject):
+    type = "BaselineDriver"
+    cxx_class = "gem5::BaselineDriver"
+    cxx_header = "mem/ruby/sparta/baseline/sequential/BaselineDriver.hh"
+
+    mm = Param.MatMul("MatMul unit")
+
+    Q = Param.Addr("Pointer to Q matrix")
+    K = Param.Addr("Pointer to K^T matrix")
+    V = Param.Addr("Pointer to V matrix")
+    Scores = Param.Addr("Pointer to Scores output")
+    Prob = Param.Addr("Pointer to Probability (softmax) matrix")
+    Output = Param.Addr("Pointer to Output (A*V)")
+
     M = Param.Int("Rows")
-    N = Param.Int("Cols")
-    K = Param.Int("Inner dim")
-    A = Param.Addr("Pointer to matrix A")
-    B = Param.Addr("Pointer to matrix B")
-    C = Param.Addr("Pointer to matrix C")
-
-    @cxxMethod
-    def startup(self):
-        pass
-
-    @cxxMethod
-    def startMatMul(self, A, B, C, M, N, K):
-        pass
+    N = Param.Int("Columns")
+    Kdim = Param.Int("Depth")

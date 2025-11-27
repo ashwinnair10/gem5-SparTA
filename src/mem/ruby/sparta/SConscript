@@ -3,9 +3,11 @@ Import('*')
 SimObject('SparTA.py', sim_objects=[
     'PE_Mul',
     'PE_Acc',
-    'MatMul'
+    'MatMul',
+    'BaselineDriver'
 ])
 
 Source('PE_Mul.cc')
 Source('PE_Acc.cc')
 Source('MatMul.cc')
+Source('baseline/sequential/BaselineDriver.cc')

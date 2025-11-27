@@ -11,6 +11,7 @@ namespace gem5{
     public:
 
       std::function<void(float)> callback;
+      void setCallback(std::function<void(float)> cb) { callback = cb; }
 
       PE_Mul(const PE_MulParams &p);
 

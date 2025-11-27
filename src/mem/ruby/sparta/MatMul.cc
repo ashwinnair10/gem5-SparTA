@@ -8,13 +8,8 @@ namespace gem5{
     MatMul::MatMul(const MatMulParams &p)
         : SimObject(p),
         mul(p.mul),
-        acc(p.acc),
-        A(reinterpret_cast<float **>(p.A)),
-        B(reinterpret_cast<float **>(p.B)),
-        C(reinterpret_cast<float **>(p.C)),
-        M(p.M),
-        N(p.N),
-        K(p.K){}
+        acc(p.acc)
+        {}
     void MatMul::startup(){
         std::cout << "[SparTA-MATMUL] startup\n";
     }
@@ -30,13 +25,13 @@ namespace gem5{
         N = _N;
         K = _K;
 
-        mul->callback = [&](float product) {
+        mul->setCallback([&](float product) {
             this->onMulDone(product);
-        };
-        acc->callback = [&](float sum, int remaining) {
+        });
+        acc->setCallback([&](float sum, int remaining) {
             this->onAccDone(sum, remaining);
-        };
-
+        });
+        done=false;
         i = j = k = 0;
         acc->reset(K);
         mul->startCompute(A[i][k], B[k][j]);
@@ -70,6 +65,9 @@ namespace gem5{
         }
         std::cout << "[SparTA-MatMul] Finished matrix multiplication @ tick "
                     << curTick() << "\n";
-        exitSimLoop("");
+        if(finishedCallback){
+            finishedCallback();
+        }
+        done=true;
     }
 }

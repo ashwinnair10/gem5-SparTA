@@ -11,14 +11,20 @@ namespace gem5{
   class MatMul : public SimObject
   {
     public:
-        PE_Mul *mul;
-        PE_Acc *acc;
-        float **A, **B, **C;
-        int M, N, K;
-        int i, j, k;
+      PE_Mul *mul;
+      PE_Acc *acc;
+      float **A, **B, **C;
+      int M, N, K;
+      int i, j, k;
+      bool done=false;
+      std::function<void()> finishedCallback;
+
+      void setFinishedCallback(std::function<void()> cb) {
+          finishedCallback = cb;
+      }
 
 
-    MatMul(const MatMulParams &p);
+      MatMul(const MatMulParams &p);
 
       void startup() override;
 
@@ -31,6 +37,7 @@ namespace gem5{
 
       void onAccDone(float partial,int remaining_ops);
 
+      bool isDone() const { return done;}
   };
 }
 

@@ -10,9 +10,10 @@ namespace gem5{
   {
     public:
 
-    std::function<void(float,int)> callback;
+      std::function<void(float,int)> callback;
+      void setCallback(std::function<void(float,int)> cb) { callback = cb; }
 
-    PE_Acc(const PE_AccParams &p);
+      PE_Acc(const PE_AccParams &p);
 
       void startup() override;
 
