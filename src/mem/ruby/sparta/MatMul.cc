@@ -25,26 +25,26 @@ namespace gem5{
         N = _N;
         K = _K;
 
-        mul->setCallback([&](float product) {
-            this->onMulDone(product);
+        mul->setCallback([&](float product,int idx) {
+            this->onMulDone(product,idx);
         });
-        acc->setCallback([&](float sum, int remaining) {
-            this->onAccDone(sum, remaining);
+        acc->setCallback([&](float sum, int remaining,int idx) {
+            this->onAccDone(sum, remaining,idx);
         });
         done=false;
         i = j = k = 0;
         acc->reset(K);
-        mul->startCompute(A[i][k], B[k][j]);
+        mul->startCompute(A[i][k], B[k][j],i*N+j);
     }
 
-    void MatMul::onMulDone(float product){
-        acc->feedProduct(product);
+    void MatMul::onMulDone(float product,int idx){
+        acc->feedProduct(product,idx);
     }
 
-    void MatMul::onAccDone(float partial,int remaining_ops){
+    void MatMul::onAccDone(float partial,int remaining_ops,int idx){
         if (remaining_ops>0){
             k++;
-            mul->startCompute(A[i][k],B[k][j]);
+            mul->startCompute(A[i][k],B[k][j],i*N+j);
             return;
         }
         C[i][j]=partial;
@@ -52,7 +52,7 @@ namespace gem5{
         if (j<N){
             k=0;
             acc->reset(K);
-            mul->startCompute(A[i][k],B[k][j]);
+            mul->startCompute(A[i][k],B[k][j],i*N+j);
             return;
         }
         i++;
@@ -60,7 +60,7 @@ namespace gem5{
             j=0;
             k=0;
             acc->reset(K);
-            mul->startCompute(A[i][k],B[k][j]);
+            mul->startCompute(A[i][k],B[k][j],i*N+j);
             return;
         }
         std::cout << "[SparTA-MatMul] Finished matrix multiplication @ tick "

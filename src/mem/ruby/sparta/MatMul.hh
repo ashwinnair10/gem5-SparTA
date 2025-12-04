@@ -33,9 +33,9 @@ namespace gem5{
                          uint64_t C_ptr,
                          int _M, int _N, int _K);
 
-      void onMulDone(float product);
+      void onMulDone(float product,int idx);
 
-      void onAccDone(float partial,int remaining_ops);
+      void onAccDone(float partial,int remaining_ops,int idx);
 
       bool isDone() const { return done;}
   };

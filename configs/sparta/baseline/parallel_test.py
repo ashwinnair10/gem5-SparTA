@@ -81,10 +81,14 @@ parser.add_argument(
 parser.add_argument(
     "-s", "--seqlen", type=int, required=True, help="sequence length"
 )
+parser.add_argument(
+    "-n", "--numPEs", type=int, required=True, help="number of PES"
+)
 args = parser.parse_args()
 
 d_model = args.dmodel
 seq_len = args.seqlen
+num = args.numPEs
 
 X = rand_mat(seq_len, d_model)
 W = rand_mat(3 * d_model, d_model)
@@ -106,12 +110,13 @@ Output_m, Output_base, Output_mm = alloc_shared_matrix(seq_len, d_model)
 
 root = Root(full_system=False)
 
-root.mul = PE_Mul(latency=5)
-root.acc = PE_Acc(latency=3)
-root.mm = MatMul(mul=root.mul, acc=root.acc)
+mul_list = [PE_Mul(latency=5, island=i) for i in range(num)]
+acc_list = [PE_Acc(latency=3, island=i) for i in range(num)]
 
-root.drv = BaselineDriverSequential(
-    mm=root.mm,
+root.drv = BaselineDriverParallel(
+    numPEs=num,
+    mul_units=mul_list,
+    acc_units=acc_list,
     Q=ctypes.cast(Q_m, ctypes.c_void_p).value,
     K=ctypes.cast(K_m, ctypes.c_void_p).value,
     V=ctypes.cast(V_m, ctypes.c_void_p).value,

@@ -1,7 +1,6 @@
 from m5.params import *
 from m5.SimObject import (
     SimObject,
-    cxxMethod,
 )
 
 
@@ -10,10 +9,7 @@ class PE_Mul(SimObject):
     cxx_class = "gem5::PE_Mul"
     cxx_header = "mem/ruby/sparta/PE_Mul.hh"
     latency = Param.Int(10, "Compute latency per block")
-
-    @cxxMethod
-    def startCompute(self, operand1, operand2):
-        pass
+    island = Param.Int(0, "Island number")
 
 
 class PE_Acc(SimObject):
@@ -21,14 +17,7 @@ class PE_Acc(SimObject):
     cxx_class = "gem5::PE_Acc"
     cxx_header = "mem/ruby/sparta/PE_Acc.hh"
     latency = Param.Int(10, "Compute latency per block")
-
-    @cxxMethod
-    def reset(self, num_ops):
-        pass
-
-    @cxxMethod
-    def feedProduct(self, product):
-        pass
+    island = Param.Int(0, "Island Number")
 
 
 class MatMul(SimObject):
@@ -39,10 +28,12 @@ class MatMul(SimObject):
     acc = Param.PE_Acc("Accumulator PE")
 
 
-class BaselineDriver(SimObject):
-    type = "BaselineDriver"
-    cxx_class = "gem5::BaselineDriver"
-    cxx_header = "mem/ruby/sparta/baseline/sequential/BaselineDriver.hh"
+class BaselineDriverSequential(SimObject):
+    type = "BaselineDriverSequential"
+    cxx_class = "gem5::BaselineDriverSequential"
+    cxx_header = (
+        "mem/ruby/sparta/baseline/sequential/BaselineDriverSequential.hh"
+    )
 
     mm = Param.MatMul("MatMul unit")
 
@@ -56,3 +47,22 @@ class BaselineDriver(SimObject):
     M = Param.Int("Rows")
     N = Param.Int("Columns")
     Kdim = Param.Int("Depth")
+
+
+class BaselineDriverParallel(SimObject):
+    type = "BaselineDriverParallel"
+    cxx_class = "gem5::BaselineDriverParallel"
+    cxx_header = "mem/ruby/sparta/baseline/parallel/BaselineDriverParallel.hh"
+
+    numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
+    mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
+    acc_units = VectorParam.PE_Acc([], "List of PE_Acc units")
+    Q = Param.Addr("Pointer to Q")
+    K = Param.Addr("Pointer to K")
+    V = Param.Addr("Pointer to V")
+    Scores = Param.Addr("Pointer to Scores")
+    Prob = Param.Addr("Pointer to Probabilities")
+    Output = Param.Addr("Pointer to Final Output")
+    M = Param.Int("Seq length")
+    N = Param.Int("Seq length again")
+    Kdim = Param.Int("Head dim")

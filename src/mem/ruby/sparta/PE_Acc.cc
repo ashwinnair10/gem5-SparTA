@@ -6,6 +6,7 @@ namespace gem5{
     PE_Acc::PE_Acc(const PE_AccParams &p)
         : SimObject(p),
         latency(p.latency),
+        island(p.island),
         computeEvent([this]{ finishCompute(); },
                     "sparta_acc_compute_event"),
         current_sum(0.0f),
@@ -15,30 +16,41 @@ namespace gem5{
 
     void PE_Acc::startup()
     {
-        std::cout << "[SparTA-ACC] startup. Latency = "
+        std::cout << "[SparTA-ACC-"<<island<<"] startup. Latency = "
                 << latency << " cycles\n";
     }
 
     void PE_Acc::reset(int num_ops){
         current_sum=0.0f;
         remaining_ops=num_ops;
-        std::cout << "[SparTA-ACC] Reset\n";
+        std::cout << "[SparTA-ACC-"<<island<<"] Reset\n";
     }
 
-    void PE_Acc::feedProduct(float product){
-        if (remaining_ops==0)return;
-        current_input=product;
-        schedule(computeEvent,curTick()+latency);
+    void PE_Acc::processNext(){
+        if (!inputQueue.empty()){
+            current_input=inputQueue.front().first;
+            id=inputQueue.front().second;
+            inputQueue.pop();
+            schedule(computeEvent,curTick()+latency);
+        }
+    }
+
+    void PE_Acc::feedProduct(float product,int i){
+        inputQueue.push({product,i});
+        if (!computeEvent.scheduled()){
+            processNext();
+        }
     }
 
     void PE_Acc::finishCompute()
     {
         current_sum+=current_input;
         remaining_ops--;
-        std::cout << "[SparTA-ACC] Accumulated Partial Sum : "
+        std::cout << "[SparTA-ACC-"<<island<<"] Accumulated Partial Sum : "
                 << current_sum << "\n";
         if (callback){
-            callback(current_sum,remaining_ops);
+            callback(current_sum,remaining_ops,id);
         }
+        processNext();
     }
 }

@@ -1,6 +1,8 @@
 #ifndef __PE_ACC_HH__
 #define __PE_ACC_HH__
 
+#include <queue>
+
 #include "base/types.hh"
 #include "params/PE_Acc.hh"
 #include "sim/sim_object.hh"
@@ -10,14 +12,20 @@ namespace gem5{
   {
     public:
 
-      std::function<void(float,int)> callback;
-      void setCallback(std::function<void(float,int)> cb) { callback = cb; }
+      std::function<void(float,int,int)> callback;
+      std::queue<std::pair<float,int>> inputQueue;
+      void setCallback(std::function<void(float,int,int)> cb)
+      {
+        callback = cb;
+      }
 
       PE_Acc(const PE_AccParams &p);
 
       void startup() override;
 
-      void feedProduct(float product);
+      void processNext();
+
+      void feedProduct(float product,int id);
 
       void reset(int num_ops);
 
@@ -25,12 +33,13 @@ namespace gem5{
 
     private:
       Tick latency;
+      int island;
       EventFunctionWrapper computeEvent;
 
       float current_sum;
       float current_input;
+      int id;
       int remaining_ops;
-
       void finishCompute();
   };
 }
