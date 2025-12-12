@@ -27,6 +27,7 @@ namespace gem5{
             result=0.0f;
             std::cout << "[SparTA-MUL-"<<island<<"] Start -- Operand 1 : "
                 << operand1 << " , Operand 2 : " << operand2
+                << " -- index: " << std::get<2>(operands)
                 << " --  @ tick " << curTick() << "\n";
             schedule(computeEvent, curTick() + latency);
         }

@@ -66,3 +66,21 @@ class BaselineDriverParallel(SimObject):
     M = Param.Int("Seq length")
     N = Param.Int("Seq length again")
     Kdim = Param.Int("Head dim")
+
+class AcceleratorDriver(SimObject):
+    type = "AcceleratorDriver"
+    cxx_class = "gem5::AcceleratorDriver"
+    cxx_header = "mem/ruby/sparta/accelerator/AcceleratorDriver.hh"
+
+    numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
+    mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
+    acc_units = VectorParam.PE_Acc([], "List of PE_Acc units")
+    Q = Param.Addr("Pointer to Q")
+    K = Param.Addr("Pointer to K")
+    V = Param.Addr("Pointer to V")
+    Scores = Param.Addr("Pointer to Scores")
+    Prob = Param.Addr("Pointer to Probabilities")
+    Output = Param.Addr("Pointer to Final Output")
+    M = Param.Int("Seq length")
+    N = Param.Int("Seq length again")
+    Kdim = Param.Int("Head dim")

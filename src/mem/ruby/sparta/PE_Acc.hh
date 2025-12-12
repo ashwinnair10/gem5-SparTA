@@ -25,6 +25,8 @@ namespace gem5{
 
       void processNext();
 
+      void setParams(float sum, int remaining);
+
       void feedProduct(float product,int id);
 
       void reset(int num_ops);

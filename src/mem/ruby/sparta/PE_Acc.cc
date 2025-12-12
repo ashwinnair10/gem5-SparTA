@@ -12,7 +12,7 @@ namespace gem5{
         current_sum(0.0f),
         current_input(0.0f),
         remaining_ops(0)
-    { }
+    { } 
 
     void PE_Acc::startup()
     {
@@ -31,8 +31,17 @@ namespace gem5{
             current_input=inputQueue.front().first;
             id=inputQueue.front().second;
             inputQueue.pop();
+            std::cout << "[SparTA-ACC-"<<island<<"] Start -- PartialSum : "
+                << current_sum << " , Input : " << current_input
+                << " -- index: " << id
+                << " --  @ tick " << curTick() << "\n";
             schedule(computeEvent,curTick()+latency);
         }
+    }
+
+    void PE_Acc::setParams(float sum, int remaining){
+        current_sum=sum;
+        remaining_ops=remaining;
     }
 
     void PE_Acc::feedProduct(float product,int i){
@@ -42,6 +51,7 @@ namespace gem5{
         }
     }
 
+    //acc has to be modified to push out the partial sum instead of keeping it till remaining_ops is 0?
     void PE_Acc::finishCompute()
     {
         current_sum+=current_input;
