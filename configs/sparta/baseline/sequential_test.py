@@ -4,6 +4,8 @@ import math
 import mmap
 import random
 
+import numpy as np
+
 import m5
 from m5.objects import *
 
@@ -86,8 +88,8 @@ args = parser.parse_args()
 d_model = args.dmodel
 seq_len = args.seqlen
 
-X = rand_mat(seq_len, d_model)
-W = rand_mat(3 * d_model, d_model)
+X = np.load("configs/sparta/inputs/X.npy").tolist()
+W = np.load("configs/sparta/inputs/W.npy").tolist()
 b = [0.0] * (3 * d_model)
 
 QKV = matmul(X, [list(col) for col in zip(*W)])
