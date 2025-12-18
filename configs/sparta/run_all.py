@@ -11,7 +11,7 @@ GEN_INPUTS = "configs/sparta/gen_inputs.py"
 TESTS = [
     ("Sequential", "configs/sparta/baseline/sequential_test.py"),
     ("Parallel", "configs/sparta/baseline/parallel_test.py"),
-    ("SparTA", "configs/sparta/accelerator/proposed_test.py"),
+    ("SparTA", "configs/sparta/accelerator/accelerator_test.py"),
 ]
 
 
