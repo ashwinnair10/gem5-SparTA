@@ -1,11 +1,11 @@
-#include "mem/ruby/sparta/accelerator/AcceleratorDriver.hh"
+#include "sparta/accelerator/AcceleratorDriver.hh"
 
 #include <cmath>
 #include <iostream>
 
-#include "mem/ruby/sparta/PE_Acc.hh"
-#include "mem/ruby/sparta/PE_Mul.hh"
 #include "sim/sim_exit.hh"
+#include "sparta/PE_Acc.hh"
+#include "sparta/PE_Mul.hh"
 
 namespace gem5 {
 
@@ -34,12 +34,13 @@ namespace gem5 {
         completedTasks = 0;
         mulBusy.resize(numPEs, -1);
         accBusy.resize(numPEs, -1);
-
+        accLoad.resize(numPEs, 0);
     }
 
     void AcceleratorDriver::startup()
     {
-        std::cout << "[SparTA-Acc] startup with " << numPEs << " PEs\n";
+        std::cout << RED
+            << "[SparTA-Acc] startup with " << numPEs << " PEs\n"<< RESET;
         for (int i = 0; i < numPEs; i++) {
             mulUnits[i]->setCallback(
                 [this, i](float product,int idx){
@@ -55,7 +56,7 @@ namespace gem5 {
 
     void AcceleratorDriver::start()
     {
-        std::cout << "[SparTA-Accl] Starting Q*K^T \n";
+        std::cout << RED<< "[SparTA-Accl] Starting Q*K^T \n"<< RESET;
         phase = PHASE_QK;
         currentOut=Scores;
         currentCols=N;
@@ -68,7 +69,7 @@ namespace gem5 {
     {
         partialSums.clear();
         remainingCounts.clear();
-        // mulTaskQueue.clear();
+        mulTaskQueue = std::queue<MulTask>();
 
         totalTasks = M * N;
         completedTasks = 0;
@@ -78,6 +79,10 @@ namespace gem5 {
                 remainingCounts[idx] = K;
                 partialSums[idx] = 0.0f;
                 for (int k = 0; k < K; k++) {
+                    if (A[i][k]==0.0f || B[k][j]==0.0f) {
+                        remainingCounts[idx]--;
+                        continue;
+                    }
                     mulTaskQueue.push({A[i][k], B[k][j], idx});
                 }
             }
@@ -85,7 +90,8 @@ namespace gem5 {
         tryScheduleMul();
     }
 
-    //@TODO: add hashing to a PE to do mul instead of searching through all pe to find free
+    //@TODO: add hashing to a PE to do mul instead of
+    // searching through all pe to find free
     void AcceleratorDriver::tryScheduleMul()
     {
         for (int pe = 0; pe < numPEs; pe++) {
@@ -105,61 +111,85 @@ namespace gem5 {
     {
         mulBusy[pe] = -1;
 
-        accTaskQueue.push({product,idx});  //is it needed?
-        // Schedule acc work
+        accTaskQueue.push({product,idx});
         tryScheduleAcc();
 
-        // Immediately schedule more MUL work if available
         tryScheduleMul();
     }
 
     void AcceleratorDriver::tryScheduleAcc()
     {
-        if(!accTaskQueue.empty()){
-            AccTask t = accTaskQueue.front();
-            accTaskQueue.pop();
-            int accPE = findFreeAccPE(t.idx);
-            if (accBusy[accPE] == -1){
-                accBusy[accPE] = idx;
-                accUnits[accPE]->setParams(partialSums[t.idx], remainingCounts[t.idx]);
-            }
-            accUnits[accPE]->feedProduct(t.product, t.idx);
-            
-        }
-    }
-    int AcceleratorDriver::findFreeAccPE(int idx)
-    {
-        int pe = 0;
-        // First try an ACC unit already processing this dot product
-        for (int i=0; i<numPEs; i++) {
-            if (accBusy[i] == idx){
-                return i;
-            }
+        if (accTaskQueue.empty()) return;
+
+        AccTask t = accTaskQueue.front();
+        int pe = findFreeAccPE(t.idx);
+
+        if (pe == -1) return;   // no free PE, backpressure
+
+        accTaskQueue.pop();
+
+        if (accBusy[pe] == -1) {
+            accBusy[pe] = t.idx;
+            accLoad[pe]++;
+
+            accUnits[pe]->setParams(
+                partialSums[t.idx],
+                remainingCounts[t.idx]
+            );
         }
 
-        // Otherwise allocate a free ACC unit
-        for (int i=0; i<numPEs; i++) {
-            if (accBusy[i] == -1) {
-                pe = i;
-                break;
-            }
-        }
-        return pe;
-        // panic("No free ACC PE available — increase numPEs");
+        accUnits[pe]->feedProduct(t.product, t.idx);
     }
+
+    int AcceleratorDriver::findFreeAccPE(int idx)
+    {
+        for (int i = 0; i < numPEs; i++) {
+            if (accBusy[i] == idx)
+                return i;
+        }
+
+        int pe = hashToPE(idx);
+
+        if (accBusy[pe] == -1)
+            return pe;
+
+        for (int offset = 1; offset <= 2; offset++) {
+            int probe = (pe + offset) % numPEs;
+            if (accBusy[probe] == -1)
+                return probe;
+        }
+
+        return -1;
+    }
+
+    void AcceleratorDriver::reseed()
+    {
+        int maxLoad = 0, minLoad = INT_MAX;
+        for (int l : accLoad) {
+            maxLoad = std::max(maxLoad, l);
+            minLoad = std::min(minLoad, l);
+        }
+
+        if (maxLoad - minLoad > 2) {
+            hashSeed++;
+        }
+    }
+
+
 
 
     void AcceleratorDriver::
     onAccReady(int pe, float sum, int remaining,int idx)
     {
-        accBusy[pe]=-1;  
-
-        if (remaining==0){    //what is remaining?
+        if (remaining==0){
             currentOut[idx/currentCols][idx%currentCols]=sum;
             completedTasks++;
             partialSums[idx]=0.0f;
             remainingCounts[idx]=(phase==PHASE_QK?Kdim:N);
-            // accUnits[pe]->reset(phase==PHASE_QK?Kdim:N);  ?
+            accUnits[pe]->reset(phase==PHASE_QK?Kdim:N);
+            accLoad[pe]--;
+            accBusy[pe]=-1;
+            reseed();
             if (completedTasks == totalTasks) {
                 if (phase == PHASE_QK) {
                     onQKDone();
@@ -171,13 +201,17 @@ namespace gem5 {
         }else{
             partialSums[idx]=sum;
             remainingCounts[idx]=remaining;
+            accBusy[pe]=idx;
+        }
+        if ((completedTasks & 0x3F) == 0) {
+            reseed();
         }
         tryScheduleAcc();
     }
 
     void AcceleratorDriver::onQKDone()
     {
-        std::cout << "[SparTA-Accl] QK done. Running softmax.\n";
+        std::cout << RED<< "[SparTA-Accl] QK done. Running softmax.\n"<< RESET;
         phase = PHASE_SOFTMAX;
         runSoftmax();
         startAV();
@@ -202,7 +236,7 @@ namespace gem5 {
     void AcceleratorDriver::startAV()
     {
         phase = PHASE_AV;
-        std::cout << "[SparTA-Accl] Starting A*V\n";
+        std::cout << RED<< "[SparTA-Accl] Starting A*V\n"<< RESET;
         currentOut=Output;
         currentCols=Kdim;
         dispatchMatMul(Prob, V, Output, M, Kdim, N);
@@ -210,7 +244,8 @@ namespace gem5 {
 
     void AcceleratorDriver::onAVDone()
     {
-        std::cout << "[SparTA-Accl] AV done. Accelerator complete.\n";
+        std::cout << RED
+            << "[SparTA-Accl] AV done. Accelerator complete.\n"<< RESET;
         phase = PHASE_DONE;
         exitSimLoop("Accelerator done");
     }

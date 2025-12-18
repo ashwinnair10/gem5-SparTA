@@ -32,6 +32,8 @@ namespace gem5{
       float operand2;
       int id;
       float result;
+      static constexpr const char* GREEN = "\033[32m";
+      static constexpr const char* RESET = "\033[0m";
       void processNext();
       void finishCompute();
   };

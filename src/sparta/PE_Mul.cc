@@ -1,4 +1,4 @@
-#include "mem/ruby/sparta/PE_Mul.hh"
+#include "sparta/PE_Mul.hh"
 
 #include <iostream>
 
@@ -9,12 +9,13 @@ namespace gem5{
         island(p.island),
         computeEvent([this]{ finishCompute(); },
                     "sparta_mul_compute_event")
-    { }
+    {
+    }
 
     void PE_Mul::startup()
     {
-        std::cout << "[SparTA-MUL-"<<island<<"] startup. Latency = "
-                << latency << " cycles\n";
+        std::cout << GREEN<< "[SparTA-MUL-"<<island<<"] startup. Latency = "
+                << latency << " cycles\n"<< RESET;
     }
 
     void PE_Mul::processNext(){
@@ -25,10 +26,11 @@ namespace gem5{
             operand2=std::get<1>(operands);
             id=std::get<2>(operands);
             result=0.0f;
-            std::cout << "[SparTA-MUL-"<<island<<"] Start -- Operand 1 : "
+            std::cout << GREEN
+                << "[SparTA-MUL-"<<island<<"] Start -- Operand 1 : "
                 << operand1 << " , Operand 2 : " << operand2
                 << " -- index: " << std::get<2>(operands)
-                << " --  @ tick " << curTick() << "\n";
+                << " --  @ tick " << curTick() << "\n"<< RESET;
             schedule(computeEvent, curTick() + latency);
         }
     }
@@ -44,8 +46,9 @@ namespace gem5{
     void PE_Mul::finishCompute()
     {
         result=operand1*operand2;
-        std::cout << "[SparTA-MUL-"<<island<<"] Finished compute -- Result : "
-                << result << " -- @ tick " << curTick() << "\n";
+        std::cout << GREEN
+            << "[SparTA-MUL-"<<island<<"] Finished compute -- Result : "
+            << result << " -- @ tick " << curTick() << "\n"<< RESET;
         if (callback){
             callback(result,id);
         }

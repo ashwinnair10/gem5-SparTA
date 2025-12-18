@@ -2,9 +2,9 @@
 #define __BASELINE_DRIVER_SEQUENTIAL_HH__
 
 #include "base/types.hh"
-#include "mem/ruby/sparta/MatMul.hh"
 #include "params/BaselineDriverSequential.hh"
 #include "sim/sim_object.hh"
+#include "sparta/MatMul.hh"
 
 namespace gem5 {
 

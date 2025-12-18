@@ -1,4 +1,4 @@
-#include "mem/ruby/sparta/MatMul.hh"
+#include "sparta/MatMul.hh"
 
 #include <iostream>
 
@@ -65,7 +65,7 @@ namespace gem5{
         }
         std::cout << "[SparTA-MatMul] Finished matrix multiplication @ tick "
                     << curTick() << "\n";
-        if(finishedCallback){
+        if (finishedCallback){
             finishedCallback();
         }
         done=true;

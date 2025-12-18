@@ -37,11 +37,13 @@ namespace gem5{
       Tick latency;
       int island;
       EventFunctionWrapper computeEvent;
-
+      static constexpr const char* YELLOW = "\033[33m";
+      static constexpr const char* RESET = "\033[0m";
       float current_sum;
       float current_input;
       int id;
       int remaining_ops;
+      bool busy;
       void finishCompute();
   };
 }

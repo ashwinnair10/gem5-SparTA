@@ -1,10 +1,14 @@
 #ifndef __ACCELERATOR_DRIVER_HH__
 #define __ACCELERATOR_DRIVER_HH__
 
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "base/types.hh"
 #include "params/AcceleratorDriver.hh"
 #include "sim/sim_object.hh"
-#include <queue>
 
 namespace gem5{
     class AcceleratorDriver : public SimObject
@@ -27,26 +31,34 @@ namespace gem5{
 
         EventFunctionWrapper startEvent;
 
-        struct MulTask{
+        struct MulTask
+        {
             float a,b;
             int idx;
         };
         std::queue<MulTask> mulTaskQueue;
 
-        struct AccTask{
+        struct AccTask
+        {
             float product;
             int idx;
         };
-        std::queue<AccTask> accTaskQueue; //is fifo buffer needed for acc partial sums? or both map and queue for new products to be scheduled
+        std::queue<AccTask> accTaskQueue;
+         //is fifo buffer needed for acc partial sums?
+        //  or both map and queue for new products to be scheduled
         std::unordered_map<int, float> partialSums; //idx->partial sum
-        std::unordered_map<int, int> remainingCounts;   // idx -> remaining products to be added
+        std::unordered_map<int, int> remainingCounts;
+        // idx -> remaining products to be added
 
-        struct PEState{
+        struct PEState
+        {
             int currIdx;  //if currIdx is -1 it is free, else busy
         };
-        std::vector<int> mulBusy; 
+        std::vector<int> mulBusy;
         //int is PEState with currIDx if busy else -1
         std::vector<int> accBusy;
+        uint64_t hashSeed = 0;
+        std::vector<int> accLoad;
 
         enum Phase
         {
@@ -78,6 +90,17 @@ namespace gem5{
         void runSoftmax();
 
         float *softmaxRow;
+
+        static constexpr const char* RED = "\033[31m";
+        static constexpr const char* RESET = "\033[0m";
+
+        int hashToPE(int idx) const {
+            return (idx ^ hashSeed) % numPEs;
+        }
+
+        void reseed();
+
+
     };
 }
 

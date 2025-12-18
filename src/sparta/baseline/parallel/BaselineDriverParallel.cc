@@ -1,11 +1,11 @@
-#include "mem/ruby/sparta/baseline/parallel/BaselineDriverParallel.hh"
+#include "sparta/baseline/parallel/BaselineDriverParallel.hh"
 
 #include <cmath>
 #include <iostream>
 
-#include "mem/ruby/sparta/PE_Acc.hh"
-#include "mem/ruby/sparta/PE_Mul.hh"
 #include "sim/sim_exit.hh"
+#include "sparta/PE_Acc.hh"
+#include "sparta/PE_Mul.hh"
 
 namespace gem5 {
 

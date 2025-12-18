@@ -2,10 +2,10 @@
 #define __MATMUL_HH__
 
 #include "base/types.hh"
-#include "mem/ruby/sparta/PE_Acc.hh"
-#include "mem/ruby/sparta/PE_Mul.hh"
 #include "params/MatMul.hh"
 #include "sim/sim_object.hh"
+#include "sparta/PE_Acc.hh"
+#include "sparta/PE_Mul.hh"
 
 namespace gem5{
   class MatMul : public SimObject

@@ -1,4 +1,4 @@
-#include "mem/ruby/sparta/baseline/sequential/BaselineDriverSequential.hh"
+#include "sparta/baseline/sequential/BaselineDriverSequential.hh"
 
 #include <cmath>
 #include <iostream>

@@ -7,7 +7,7 @@ from m5.SimObject import (
 class PE_Mul(SimObject):
     type = "PE_Mul"
     cxx_class = "gem5::PE_Mul"
-    cxx_header = "mem/ruby/sparta/PE_Mul.hh"
+    cxx_header = "sparta/PE_Mul.hh"
     latency = Param.Int(10, "Compute latency per block")
     island = Param.Int(0, "Island number")
 
@@ -15,7 +15,7 @@ class PE_Mul(SimObject):
 class PE_Acc(SimObject):
     type = "PE_Acc"
     cxx_class = "gem5::PE_Acc"
-    cxx_header = "mem/ruby/sparta/PE_Acc.hh"
+    cxx_header = "sparta/PE_Acc.hh"
     latency = Param.Int(10, "Compute latency per block")
     island = Param.Int(0, "Island Number")
 
@@ -23,7 +23,7 @@ class PE_Acc(SimObject):
 class MatMul(SimObject):
     type = "MatMul"
     cxx_class = "gem5::MatMul"
-    cxx_header = "mem/ruby/sparta/MatMul.hh"
+    cxx_header = "sparta/MatMul.hh"
     mul = Param.PE_Mul("Multiplier PE")
     acc = Param.PE_Acc("Accumulator PE")
 
@@ -31,9 +31,7 @@ class MatMul(SimObject):
 class BaselineDriverSequential(SimObject):
     type = "BaselineDriverSequential"
     cxx_class = "gem5::BaselineDriverSequential"
-    cxx_header = (
-        "mem/ruby/sparta/baseline/sequential/BaselineDriverSequential.hh"
-    )
+    cxx_header = "sparta/baseline/sequential/BaselineDriverSequential.hh"
 
     mm = Param.MatMul("MatMul unit")
 
@@ -52,7 +50,7 @@ class BaselineDriverSequential(SimObject):
 class BaselineDriverParallel(SimObject):
     type = "BaselineDriverParallel"
     cxx_class = "gem5::BaselineDriverParallel"
-    cxx_header = "mem/ruby/sparta/baseline/parallel/BaselineDriverParallel.hh"
+    cxx_header = "sparta/baseline/parallel/BaselineDriverParallel.hh"
 
     numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
     mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
@@ -67,10 +65,11 @@ class BaselineDriverParallel(SimObject):
     N = Param.Int("Seq length again")
     Kdim = Param.Int("Head dim")
 
+
 class AcceleratorDriver(SimObject):
     type = "AcceleratorDriver"
     cxx_class = "gem5::AcceleratorDriver"
-    cxx_header = "mem/ruby/sparta/accelerator/AcceleratorDriver.hh"
+    cxx_header = "sparta/accelerator/AcceleratorDriver.hh"
 
     numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
     mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
