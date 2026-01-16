@@ -21,6 +21,7 @@ namespace gem5 {
         M(p.M), N(p.N), Kdim(p.Kdim),
         numPEs(p.numPEs),
         startEvent([this]{ start(); }, "baseline_start_event"),
+        retryEvent([this]{ retryStalled(); }, "baseline_retry_event"),
         phase(PHASE_IDLE)
     {
         softmaxRow = new float[N];
@@ -74,7 +75,13 @@ namespace gem5 {
                     int mul_id = (i*N+j) % numPEs;
                     float a = A[i][k];
                     float b = B[k][j];
-                    mulUnits[mul_id]->startCompute(a, b,i*N+j);
+                    numReads += 2; // read A[i][k] and B[k][j]
+                    // mulUnits[mul_id]->startCompute(a, b,i*N+j);
+                    if (!mulUnits[mul_id]->push(a, b,i*N+j)){
+                        stallMulQueue.push(std::make_tuple(a,b,i*N+j));
+                        if (!retryEvent.scheduled())
+                            schedule(retryEvent, curTick() + 1);
+                    }
                 }
             }
         }
@@ -82,7 +89,13 @@ namespace gem5 {
 
     void BaselineDriverParallel::onProductReady(int pe, float product,int idx)
     {
-        accUnits[pe]->feedProduct(product,idx);
+        if (!accUnits[pe]->push(product,idx)){
+            stallAccQueue.push(std::make_pair(product,idx));
+            if (!retryEvent.scheduled())
+                schedule(retryEvent, curTick() + 1);
+            return;
+        }
+        // accUnits[pe]->feedProduct(product,idx);
     }
 
     void BaselineDriverParallel::
@@ -90,6 +103,7 @@ namespace gem5 {
     {
         if (remaining==0){
             currentOut[idx/currentCols][idx%currentCols]=sum;
+            numWrites++; // write output
             completedTasks++;
             accUnits[pe]->reset(phase==PHASE_QK?Kdim:N);
             if (completedTasks == totalTasks) {
@@ -102,6 +116,45 @@ namespace gem5 {
             }
         }
     }
+
+    void BaselineDriverParallel::retryStalled()
+    {
+        bool stalled = false;
+
+        // Retry MUL queue
+        size_t mul_sz = stallMulQueue.size();
+        for (size_t i = 0; i < mul_sz; i++) {
+            auto [a, b, idx] = stallMulQueue.front();
+            stallMulQueue.pop();
+
+            int mul_id = idx % numPEs;
+            if (!mulUnits[mul_id]->push(a, b, idx)) {
+                stallMulQueue.push({a, b, idx});
+                stalled = true;
+            }
+        }
+
+        // Retry ACC queue
+        size_t acc_sz = stallAccQueue.size();
+        for (size_t i = 0; i < acc_sz; i++) {
+            auto [product, idx] = stallAccQueue.front();
+            stallAccQueue.pop();
+
+            int acc_id = idx % numPEs;
+            if (!accUnits[acc_id]->push(product, idx)) {
+                stallAccQueue.push({product, idx});
+                stalled = true;
+            }
+        }
+
+        // Reschedule if still stalled
+        if (stalled || !stallMulQueue.empty() || !stallAccQueue.empty()) {
+            schedule(retryEvent, curTick() + 1);
+            if (!stallMulQueue.empty() || !stallAccQueue.empty())
+                stallCycles++;   // add this stat
+        }
+    }
+
 
     void BaselineDriverParallel::onQKDone()
     {
@@ -141,5 +194,26 @@ namespace gem5 {
         std::cout << "[SparTA-BASE] AV done. Baseline complete.\n";
         phase = PHASE_DONE;
         exitSimLoop("baseline done");
+    }
+
+    void BaselineDriverParallel::regStats()
+    {
+        numReads
+            .name(name() + ".numReads")
+            .desc("Number of reads performed by the baseline driver");
+        numWrites
+            .name(name() + ".numWrites")
+            .desc("Number of writes performed by the baseline driver");
+        stallCycles
+            .name(name() + ".stallCycles")
+            .desc("Number of cycles stalled due to full PE queues");
+        for (size_t i = 0; i < mulUnits.size(); ++i) {
+            if (mulUnits[i])
+                mulUnits[i]->regStats();
+        }
+        for (size_t i = 0; i < accUnits.size(); ++i) {
+            if (accUnits[i])
+                accUnits[i]->regStats();
+        }
     }
 }

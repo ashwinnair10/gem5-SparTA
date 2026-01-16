@@ -1,6 +1,9 @@
 #ifndef __MATMUL_HH__
 #define __MATMUL_HH__
 
+#include <queue>
+
+#include "base/statistics.hh"
 #include "base/types.hh"
 #include "params/MatMul.hh"
 #include "sim/sim_object.hh"
@@ -18,6 +21,11 @@ namespace gem5{
       int i, j, k;
       bool done=false;
       std::function<void()> finishedCallback;
+      std::queue<std::tuple<float,float,int>> stallMulQueue;
+      std::queue<std::pair<float,int>> stallAccQueue;
+
+      EventFunctionWrapper retryEvent;
+      statistics::Scalar stallCycles;
 
       void setFinishedCallback(std::function<void()> cb) {
           finishedCallback = cb;
@@ -38,6 +46,11 @@ namespace gem5{
       void onAccDone(float partial,int remaining_ops,int idx);
 
       bool isDone() const { return done;}
+
+      void retryStalled();
+
+    private:
+        void regStats() override;
   };
 }
 

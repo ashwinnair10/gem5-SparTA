@@ -1,6 +1,9 @@
 #ifndef __BASELINE_DRIVER_PARALLEL_HH__
 #define __BASELINE_DRIVER_PARALLEL_HH__
 
+#include <queue>
+
+#include "base/statistics.hh"
 #include "base/types.hh"
 #include "params/BaselineDriverParallel.hh"
 #include "sim/sim_object.hh"
@@ -24,7 +27,11 @@ namespace gem5{
         uint64_t totalTasks;
         uint64_t completedTasks;
 
+        std::queue<std::tuple<float,float,int>> stallMulQueue;
+        std::queue<std::pair<float,int>> stallAccQueue;
+
         EventFunctionWrapper startEvent;
+        EventFunctionWrapper retryEvent;
 
         enum Phase
         {
@@ -46,12 +53,20 @@ namespace gem5{
 
         void onProductReady(int pe, float product,int idx);
         void onAccReady(int pe, float sum, int remaining,int idx);
+        void retryStalled();
 
         void onQKDone();
         void onAVDone();
         void runSoftmax();
 
         float *softmaxRow;
+
+    private:
+        statistics::Scalar numReads;
+        statistics::Scalar numWrites;
+        statistics::Scalar stallCycles;
+
+        void regStats() override;
     };
 }
 

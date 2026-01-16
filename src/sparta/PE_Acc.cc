@@ -7,6 +7,7 @@ namespace gem5{
         : SimObject(p),
         latency(p.latency),
         island(p.island),
+        queue_size(p.queue_size),
         computeEvent([this]{ finishCompute(); },
                     "sparta_acc_compute_event"),
         current_sum(0.0f),
@@ -31,9 +32,13 @@ namespace gem5{
     }
 
     void PE_Acc::processNext(){
+        if (computeEvent.scheduled())
+            return;
         if (busy) return;
-        if (inputQueue.empty()) return;
-        if (remaining_ops<=0) return;
+        if (inputQueue.empty()||remaining_ops<=0){
+            idleCycles++;
+            return;
+        }
         busy=true;
         current_input=inputQueue.front().first;
         id=inputQueue.front().second;
@@ -51,11 +56,23 @@ namespace gem5{
         remaining_ops=remaining;
     }
 
-    void PE_Acc::feedProduct(float product,int i){
+    // void PE_Acc::feedProduct(float product,int i){
+    //     inputQueue.push({product,i});
+    //     if (!computeEvent.scheduled()){
+    //         processNext();
+    //     }
+    // }
+
+    bool PE_Acc::push(float product,int i)
+    {
+        if (inputQueue.size()==queue_size){
+            return false;
+        }
         inputQueue.push({product,i});
         if (!computeEvent.scheduled()){
             processNext();
         }
+        return true;
     }
 
     //acc has to be modified to push out the partial sum
@@ -65,13 +82,35 @@ namespace gem5{
         busy=false;
         current_sum+=current_input;
         remaining_ops--;
+        numAccOps++;
+        activeCycles+=latency;
         std::cout << YELLOW
             << "[SparTA-ACC-"<<island<<"] Accumulated Partial Sum : "
             << current_sum << "\n"<< RESET;
         if (callback){
             callback(current_sum,remaining_ops,id);
         }
-        if (remaining_ops>0)
+        if (remaining_ops>0&&!computeEvent.scheduled())
         processNext();
+    }
+
+    void PE_Acc::regStats()
+    {
+        using namespace statistics;
+        numAccOps
+            .name(name() + ".numAccOps")
+            .desc("Number of accumulate operations performed")
+            .prereq(numAccOps)
+            ;
+        activeCycles
+            .name(name() + ".activeCycles")
+            .desc("Number of cycles the Accumulator was active")
+            .prereq(activeCycles)
+            ;
+        idleCycles
+            .name(name() + ".idleCycles")
+            .desc("Number of cycles the Accumulator was idle")
+            .prereq(idleCycles)
+            ;
     }
 }

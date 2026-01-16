@@ -10,6 +10,7 @@ class PE_Mul(SimObject):
     cxx_header = "sparta/PE_Mul.hh"
     latency = Param.Int(10, "Compute latency per block")
     island = Param.Int(0, "Island number")
+    queue_size = Param.Int(16, "Size of the input queue")
 
 
 class PE_Acc(SimObject):
@@ -18,6 +19,7 @@ class PE_Acc(SimObject):
     cxx_header = "sparta/PE_Acc.hh"
     latency = Param.Int(10, "Compute latency per block")
     island = Param.Int(0, "Island Number")
+    queue_size = Param.Int(16, "Size of the input queue")
 
 
 class MatMul(SimObject):

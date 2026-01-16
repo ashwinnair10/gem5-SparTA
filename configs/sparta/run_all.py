@@ -31,6 +31,8 @@ def run_test(name, script, outdir, args):
         str(args.dmodel),
         "--seqlen",
         str(args.seqlen),
+        "--queueSize",
+        str(args.queueSize),
     ]
 
     if name != "Sequential":
@@ -49,9 +51,24 @@ def extract_simticks(stats_path):
 
 # ---------------- args ----------------
 parser = argparse.ArgumentParser()
-parser.add_argument("--dmodel", type=int, required=True)
-parser.add_argument("--seqlen", type=int, required=True)
-parser.add_argument("--numPEs", type=int, required=True)
+
+# model params
+parser.add_argument("-d", "--dmodel", type=int, required=True)
+parser.add_argument("-s", "--seqlen", type=int, required=True)
+parser.add_argument("-n", "--numPEs", type=int, required=True)
+parser.add_argument("-q", "--queueSize", type=int, required=True)
+
+# sparsity params (forwarded to gen_inputs.py)
+parser.add_argument(
+    "--sparsity-mode",
+    choices=["none", "random", "block", "local"],
+    default="none",
+)
+
+parser.add_argument("--sparsity", type=float, default=0.0)
+parser.add_argument("--block-size", type=int, default=16)
+parser.add_argument("--window", type=int, default=32)
+
 args = parser.parse_args()
 
 # ---------------- prepare stats dir ----------------
@@ -59,16 +76,28 @@ os.makedirs(STATS_ROOT, exist_ok=True)
 
 # ---------------- generate shared inputs ----------------
 print("\n===== Generating shared input matrices =====")
-run_cmd(
-    [
-        "python3",
-        GEN_INPUTS,
-        "--dmodel",
-        str(args.dmodel),
-        "--seqlen",
-        str(args.seqlen),
-    ]
-)
+
+gen_cmd = [
+    "python3",
+    GEN_INPUTS,
+    "--dmodel",
+    str(args.dmodel),
+    "--seqlen",
+    str(args.seqlen),
+    "--sparsity-mode",
+    args.sparsity_mode,
+]
+
+if args.sparsity_mode in ("random", "block"):
+    gen_cmd += ["--sparsity", str(args.sparsity)]
+
+if args.sparsity_mode == "block":
+    gen_cmd += ["--block-size", str(args.block_size)]
+
+if args.sparsity_mode == "local":
+    gen_cmd += ["--window", str(args.window)]
+
+run_cmd(gen_cmd)
 
 # ---------------- run all tests ----------------
 results = {}

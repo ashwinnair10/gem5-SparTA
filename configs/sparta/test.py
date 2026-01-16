@@ -6,8 +6,8 @@ import random
 
 import numpy as np
 
-import m5
-from m5.objects import *
+# import m5
+# from m5.objects import *
 
 
 def rand_mat(rows, cols):
@@ -83,18 +83,13 @@ parser.add_argument(
 parser.add_argument(
     "-s", "--seqlen", type=int, required=True, help="sequence length"
 )
-parser.add_argument(
-    "-n", "--numPEs", type=int, required=True, help="number of PES"
-)
-parser.add_argument(
-    "-q", "--queueSize", type=int, required=True, help="queue size for PEs"
-)
+# parser.add_argument(
+#     "-n", "--numPEs", type=int, required=True, help="number of PES"
+# )
 args = parser.parse_args()
 
 d_model = args.dmodel
 seq_len = args.seqlen
-num = args.numPEs
-queue_size = args.queueSize
 
 X = np.load("configs/sparta/inputs/X.npy").tolist()
 W = np.load("configs/sparta/inputs/W.npy").tolist()
@@ -106,57 +101,63 @@ K = [row[1 * d_model : 2 * d_model] for row in QKV]
 V = [row[2 * d_model : 3 * d_model] for row in QKV]
 K_T = [list(col) for col in zip(*K)]
 
+print(f"Shape of Q:{np.shape(Q)}")
+print(f"Shape of K:{np.shape(K)}")
+print(f"Shape of V:{np.shape(V)}")
+print(f"Shape of K_T:{np.shape(K_T)}")
+
 Q_m, Q_base, Q_mm = list_to_shared(Q)
-K_m, K_base, K_mm = list_to_shared(K_T)
+K_m, K_base, K_mm = list_to_shared(K)
 V_m, V_base, V_mm = list_to_shared(V)
 
 Scores_m, Scores_base, Scores_mm = alloc_shared_matrix(seq_len, seq_len)
 Prob_m, Prob_base, Prob_mm = alloc_shared_matrix(seq_len, seq_len)
 Output_m, Output_base, Output_mm = alloc_shared_matrix(seq_len, d_model)
 
-root = Root(full_system=False)
+print(f"Shape of Scores:{np.shape(Scores_base)}")
+print(f"Shape of Prob:{np.shape(Prob_base)}")
+print(f"Shape of Output:{np.shape(Output_base)}")
 
-mul_list = [
-    PE_Mul(latency=5, island=i, queue_size=queue_size) for i in range(num)
-]
-acc_list = [
-    PE_Acc(latency=3, island=i, queue_size=queue_size) for i in range(num)
-]
+# root = Root(full_system=False)
 
-root.drv = AcceleratorDriver(
-    numPEs=num,
-    mul_units=mul_list,
-    acc_units=acc_list,
-    Q=ctypes.cast(Q_m, ctypes.c_void_p).value,
-    K=ctypes.cast(K_m, ctypes.c_void_p).value,
-    V=ctypes.cast(V_m, ctypes.c_void_p).value,
-    Scores=ctypes.cast(Scores_m, ctypes.c_void_p).value,
-    Prob=ctypes.cast(Prob_m, ctypes.c_void_p).value,
-    Output=ctypes.cast(Output_m, ctypes.c_void_p).value,
-    M=seq_len,
-    N=seq_len,
-    Kdim=d_model,
-)
+# root.mul = PE_Mul(latency=5,queue_size=4)
+# root.acc = PE_Acc(latency=3,queue_size=4)
 
-m5.instantiate()
+# mac_list = [MatMul(mul=root.mul, acc=root.acc) for i in range(num)]
 
-print("Running baseline attention inside gem5...")
-m5.simulate()
+# root.drv = MacDriverParallel(
+#     numUnits=num,
+#     mac_units=mac_list,
+#     Q=ctypes.cast(Q_m, ctypes.c_void_p).value,
+#     K=ctypes.cast(K_m, ctypes.c_void_p).value,
+#     V=ctypes.cast(V_m, ctypes.c_void_p).value,
+#     Scores=ctypes.cast(Scores_m, ctypes.c_void_p).value,
+#     Prob=ctypes.cast(Prob_m, ctypes.c_void_p).value,
+#     Output=ctypes.cast(Output_m, ctypes.c_void_p).value,
+#     M=seq_len,
+#     N=seq_len,
+#     Kdim=d_model,
+# )
 
-Output = shared_to_list(Output_m, seq_len, d_model)
+# m5.instantiate()
 
-Ref1 = matmul(Q, [list(col) for col in zip(*K)])
-RefSoft = softmax(Ref1)
-RefOut = matmul(RefSoft, V)
+# print("Running baseline attention inside gem5...")
+# m5.simulate()
 
-print("\nGEM5 Output:")
-for r in Output:
-    print([round(i, 4) for i in r])
+# Output = shared_to_list(Output_m, seq_len, d_model)
 
-print("\nReference Output:")
-for r in RefOut:
-    print([round(i, 4) for i in r])
+# Ref1 = matmul(Q, [list(col) for col in zip(*K)])
+# RefSoft = softmax(Ref1)
+# RefOut = matmul(RefSoft, V)
 
-print("\nDifference:")
-for i in range(seq_len):
-    print([round(Output[i][j] - RefOut[i][j], 4) for j in range(d_model)])
+# print("\nGEM5 Output:")
+# for r in Output:
+#     print([round(i, 4) for i in r])
+
+# print("\nReference Output:")
+# for r in RefOut:
+#     print([round(i, 4) for i in r])
+
+# print("\nDifference:")
+# for i in range(seq_len):
+#     print([round(Output[i][j] - RefOut[i][j], 4) for j in range(d_model)])

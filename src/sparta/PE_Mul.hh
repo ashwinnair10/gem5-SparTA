@@ -3,6 +3,7 @@
 
 #include <queue>
 
+#include "base/statistics.hh"
 #include "base/types.hh"
 #include "params/PE_Mul.hh"
 #include "sim/sim_object.hh"
@@ -22,11 +23,16 @@ namespace gem5{
 
       void startCompute(float val1,float val2,int id);
 
+      bool push(float val1,float val2,int id);
+
       float getResult() const {return result;}
+
+      void regStats() override;
 
     private:
       Tick latency;
       int island;
+      int queue_size;
       EventFunctionWrapper computeEvent;
       float operand1;
       float operand2;
@@ -36,6 +42,12 @@ namespace gem5{
       static constexpr const char* RESET = "\033[0m";
       void processNext();
       void finishCompute();
+
+      statistics::Scalar numMulOps;
+      statistics::Scalar activeCycles;
+      statistics::Scalar idleCycles;
+
+
   };
 }
 

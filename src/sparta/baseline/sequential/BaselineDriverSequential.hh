@@ -1,6 +1,7 @@
 #ifndef __BASELINE_DRIVER_SEQUENTIAL_HH__
 #define __BASELINE_DRIVER_SEQUENTIAL_HH__
 
+#include "base/statistics.hh"
 #include "base/types.hh"
 #include "params/BaselineDriverSequential.hh"
 #include "sim/sim_object.hh"
@@ -32,6 +33,11 @@ class BaselineDriverSequential : public SimObject
     } phase;
 
     float *softmaxRow;
+
+    statistics::Scalar numReads;
+    statistics::Scalar numWrites;
+
+    void regStats() override;
 
   public:
     BaselineDriverSequential(const BaselineDriverSequentialParams &p);

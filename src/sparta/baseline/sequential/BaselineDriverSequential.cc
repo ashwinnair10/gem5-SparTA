@@ -46,6 +46,8 @@ namespace gem5 {
             (uint64_t)Scores,
             M, N, Kdim
         );
+        numReads += M * N * Kdim * 2;   // A and B
+        numWrites += M * N;
     }
 
     void BaselineDriverSequential::onQKDone()
@@ -90,6 +92,22 @@ namespace gem5 {
         std::cout << "[SparTA-BASE] AV complete. Baseline Attention Done.\n";
         phase = PHASE_DONE;
         exitSimLoop("");
+    }
+
+    void BaselineDriverSequential::regStats()
+    {
+        using namespace statistics;
+        SimObject::regStats();
+
+        numReads
+            .name(name() + ".num_reads")
+            .desc("Number of reads performed by the Baseline Driver")
+            ;
+
+        numWrites
+            .name(name() + ".num_writes")
+            .desc("Number of writes performed by the Baseline Driver")
+            ;
     }
 
 }

@@ -7,6 +7,7 @@ namespace gem5{
         : SimObject(p),
         latency(p.latency),
         island(p.island),
+        queue_size(p.queue_size),
         computeEvent([this]{ finishCompute(); },
                     "sparta_mul_compute_event")
     {
@@ -19,6 +20,7 @@ namespace gem5{
     }
 
     void PE_Mul::processNext(){
+        if (computeEvent.scheduled()) return;
         if (!inputQueue.empty()){
             std::tuple<float,float,int> operands=inputQueue.front();
             inputQueue.pop();
@@ -33,14 +35,29 @@ namespace gem5{
                 << " --  @ tick " << curTick() << "\n"<< RESET;
             schedule(computeEvent, curTick() + latency);
         }
+        else{
+            idleCycles++;
+        }
     }
 
-    void PE_Mul::startCompute(float val1,float val2,int i)
+    // void PE_Mul::startCompute(float val1,float val2,int i)
+    // {
+    //     inputQueue.push({val1,val2,i});
+    //     if (!computeEvent.scheduled()){
+    //         processNext();
+    //     }
+    // }
+
+    bool PE_Mul::push(float val1,float val2,int i)
     {
+        if (inputQueue.size()==queue_size){
+            return false;
+        }
         inputQueue.push({val1,val2,i});
         if (!computeEvent.scheduled()){
             processNext();
         }
+        return true;
     }
 
     void PE_Mul::finishCompute()
@@ -49,9 +66,27 @@ namespace gem5{
         std::cout << GREEN
             << "[SparTA-MUL-"<<island<<"] Finished compute -- Result : "
             << result << " -- @ tick " << curTick() << "\n"<< RESET;
+        activeCycles+=latency;
+        numMulOps++;
         if (callback){
             callback(result,id);
         }
-        processNext();
+        if (!computeEvent.scheduled())
+            processNext();
+    }
+
+    void PE_Mul::regStats()
+    {
+        using namespace statistics;
+        SimObject::regStats();
+        numMulOps
+            .name(name() + ".numMulOps")
+            .desc("Number of multiplication operations performed by PE_Mul");
+        activeCycles
+            .name(name() + ".activeCycles")
+            .desc("Number of active cycles of PE_Mul");
+        idleCycles
+            .name(name() + ".idleCycles")
+            .desc("Number of idle cycles of PE_Mul");
     }
 }

@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "base/statistics.hh"
 #include "base/types.hh"
 #include "params/AcceleratorDriver.hh"
 #include "sim/sim_object.hh"
@@ -30,6 +31,8 @@ namespace gem5{
         uint64_t completedTasks;
 
         EventFunctionWrapper startEvent;
+
+        bool retryPending;
 
         struct MulTask
         {
@@ -59,6 +62,8 @@ namespace gem5{
         std::vector<int> accBusy;
         uint64_t hashSeed = 0;
         std::vector<int> accLoad;
+        std::unordered_map<int, int> idxToAccPE;
+
 
         enum Phase
         {
@@ -100,6 +105,12 @@ namespace gem5{
 
         void reseed();
 
+    private:
+        statistics::Scalar numReads;
+        statistics::Scalar numWrites;
+        statistics::Scalar stallCycles;
+
+        void regStats() override;
 
     };
 }

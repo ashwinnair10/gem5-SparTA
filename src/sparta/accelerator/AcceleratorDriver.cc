@@ -21,6 +21,7 @@ namespace gem5 {
         M(p.M), N(p.N), Kdim(p.Kdim),
         numPEs(p.numPEs),
         startEvent([this]{ start(); }, "baseline_start_event"),
+        retryPending(false),
         phase(PHASE_IDLE)
     {
         softmaxRow = new float[N];
@@ -79,6 +80,7 @@ namespace gem5 {
                 remainingCounts[idx] = K;
                 partialSums[idx] = 0.0f;
                 for (int k = 0; k < K; k++) {
+                    numReads += 2; // read A[i][k] and B[k][j]
                     if (A[i][k]==0.0f || B[k][j]==0.0f) {
                         remainingCounts[idx]--;
                         continue;
@@ -90,21 +92,36 @@ namespace gem5 {
         tryScheduleMul();
     }
 
-    //@TODO: add hashing to a PE to do mul instead of
-    // searching through all pe to find free
     void AcceleratorDriver::tryScheduleMul()
     {
-        for (int pe = 0; pe < numPEs; pe++) {
-            if (mulBusy[pe] == -1 && !mulTaskQueue.empty()) {
-                MulTask t = mulTaskQueue.front();
+        if (mulTaskQueue.empty()) return ;
+        size_t qsz = mulTaskQueue.size();
+
+        for (size_t it = 0; it < qsz; it++) {
+            MulTask t = mulTaskQueue.front();
+
+            bool issued = false;
+            int home = hashToPE(t.idx);
+
+            for (int off = 0; off < numPEs; off++) {
+                int pe = (home + off) % numPEs;
+
+                if (mulBusy[pe] == -1) {
+                    if (mulUnits[pe]->push(t.a, t.b, t.idx)) {
+                        mulBusy[pe] = t.idx;
+                        issued = true;
+                        break;
+                    }
+                }
+            }
+            if (issued){
                 mulTaskQueue.pop();
-
-                mulBusy[pe] = t.idx;
-
-                mulUnits[pe]->startCompute(t.a, t.b, t.idx);
+                continue;
             }
         }
+        return ;
     }
+
 
 
     void AcceleratorDriver::onProductReady(int pe, float product,int idx)
@@ -113,33 +130,65 @@ namespace gem5 {
 
         accTaskQueue.push({product,idx});
         tryScheduleAcc();
-
         tryScheduleMul();
+
     }
 
     void AcceleratorDriver::tryScheduleAcc()
     {
-        if (accTaskQueue.empty()) return;
 
-        AccTask t = accTaskQueue.front();
-        int pe = findFreeAccPE(t.idx);
+        if (accTaskQueue.empty()) return ;
 
-        if (pe == -1) return;   // no free PE, backpressure
+        size_t qsz = accTaskQueue.size();
 
-        accTaskQueue.pop();
+        for (size_t it = 0; it < qsz; it++) {
+            AccTask t = accTaskQueue.front();
+            bool issued = false;
+            if (idxToAccPE.find(t.idx)!=idxToAccPE.end()){
+                int pe = idxToAccPE[t.idx];
+                    accUnits[pe]->setParams(
+                        partialSums[t.idx],
+                        remainingCounts[t.idx]
+                    );
+                    if (accUnits[pe]->push(t.product, t.idx)) {
+                        accBusy[pe] = t.idx;
+                        accLoad[pe]++;
+                        issued = true;
+                    }
+            }
+            else{
+                int home = findFreeAccPE(t.idx);
 
-        if (accBusy[pe] == -1) {
-            accBusy[pe] = t.idx;
-            accLoad[pe]++;
+                if (home == -1){
+                    break;
+                }
 
-            accUnits[pe]->setParams(
-                partialSums[t.idx],
-                remainingCounts[t.idx]
-            );
+                for (int off = 0; off < numPEs; off++) {
+                    int pe = (home + off) % numPEs;
+
+                    if (accBusy[pe] == -1) {
+                        accUnits[pe]->setParams(
+                            partialSums[t.idx],
+                            remainingCounts[t.idx]
+                        );
+                        if (accUnits[pe]->push(t.product, t.idx)) {
+                            accBusy[pe] = t.idx;
+                            accLoad[pe]++;
+                            idxToAccPE[t.idx]=pe;
+                            issued = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (issued){
+                accTaskQueue.pop();
+                continue;
+            }
         }
-
-        accUnits[pe]->feedProduct(t.product, t.idx);
+        return ;
     }
+
 
     int AcceleratorDriver::findFreeAccPE(int idx)
     {
@@ -153,7 +202,7 @@ namespace gem5 {
         if (accBusy[pe] == -1)
             return pe;
 
-        for (int offset = 1; offset <= 2; offset++) {
+        for (int offset = 1; offset < numPEs; offset++) {
             int probe = (pe + offset) % numPEs;
             if (accBusy[probe] == -1)
                 return probe;
@@ -183,12 +232,14 @@ namespace gem5 {
     {
         if (remaining==0){
             currentOut[idx/currentCols][idx%currentCols]=sum;
+            numWrites++; // write output
             completedTasks++;
             partialSums[idx]=0.0f;
             remainingCounts[idx]=(phase==PHASE_QK?Kdim:N);
             accUnits[pe]->reset(phase==PHASE_QK?Kdim:N);
             accLoad[pe]--;
             accBusy[pe]=-1;
+            idxToAccPE.erase(idx);
             reseed();
             if (completedTasks == totalTasks) {
                 if (phase == PHASE_QK) {
@@ -202,6 +253,8 @@ namespace gem5 {
             partialSums[idx]=sum;
             remainingCounts[idx]=remaining;
             accBusy[pe]=idx;
+            accLoad[pe]--;
+            idxToAccPE[idx]=pe;
         }
         if ((completedTasks & 0x3F) == 0) {
             reseed();
@@ -248,5 +301,26 @@ namespace gem5 {
             << "[SparTA-Accl] AV done. Accelerator complete.\n"<< RESET;
         phase = PHASE_DONE;
         exitSimLoop("Accelerator done");
+    }
+
+    void AcceleratorDriver::regStats()
+    {
+        numReads
+            .name(name() + ".numReads")
+            .desc("Number of reads performed by the accelerator driver");
+        numWrites
+            .name(name() + ".numWrites")
+            .desc("Number of writes performed by the accelerator driver");
+        stallCycles
+            .name(name() + ".stallCycles")
+            .desc("Number of cycles the accelerator driver was stalled");
+        for (size_t i=0;i<mulUnits.size();i++){
+            if (mulUnits[i])
+                mulUnits[i]->regStats();
+        }
+        for (size_t i=0;i<accUnits.size();i++){
+            if (accUnits[i])
+                accUnits[i]->regStats();
+        }
     }
 }
