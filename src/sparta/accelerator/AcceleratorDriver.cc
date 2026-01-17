@@ -33,7 +33,6 @@ namespace gem5 {
             accUnits.push_back(a);
         totalTasks = 0;
         completedTasks = 0;
-        mulBusy.resize(numPEs, -1);
         accBusy.resize(numPEs, -1);
         accLoad.resize(numPEs, 0);
     }
@@ -74,18 +73,22 @@ namespace gem5 {
 
         totalTasks = M * N;
         completedTasks = 0;
+        int nz=0;
         for (int i = 0; i < M; i++) {
             for (int j = 0; j < N; j++) {
                 int idx = i * N + j;
-                remainingCounts[idx] = K;
+                nz=0;
                 partialSums[idx] = 0.0f;
                 for (int k = 0; k < K; k++) {
-                    numReads += 2; // read A[i][k] and B[k][j]
-                    if (A[i][k]==0.0f || B[k][j]==0.0f) {
-                        remainingCounts[idx]--;
-                        continue;
+                    if(A[i][k]!=0&&B[k][j]!=0){
+                        nz++;
+                        mulTaskQueue.push({A[i][k],B[k][j],idx});
                     }
-                    mulTaskQueue.push({A[i][k], B[k][j], idx});
+                }
+                remainingCounts[idx]=nz;
+                if(nz==0){
+                    currentOut[i][j]=0;
+                    completedTasks++;
                 }
             }
         }
@@ -105,13 +108,9 @@ namespace gem5 {
 
             for (int off = 0; off < numPEs; off++) {
                 int pe = (home + off) % numPEs;
-
-                if (mulBusy[pe] == -1) {
-                    if (mulUnits[pe]->push(t.a, t.b, t.idx)) {
-                        mulBusy[pe] = t.idx;
-                        issued = true;
-                        break;
-                    }
+                if (mulUnits[pe]->push(t.a, t.b, t.idx)) {
+                    issued = true;
+                    break;
                 }
             }
             if (issued){
@@ -126,68 +125,53 @@ namespace gem5 {
 
     void AcceleratorDriver::onProductReady(int pe, float product,int idx)
     {
-        mulBusy[pe] = -1;
-
         accTaskQueue.push({product,idx});
         tryScheduleAcc();
         tryScheduleMul();
 
     }
 
+
     void AcceleratorDriver::tryScheduleAcc()
     {
-
-        if (accTaskQueue.empty()) return ;
+        if (accTaskQueue.empty())
+            return;
 
         size_t qsz = accTaskQueue.size();
 
         for (size_t it = 0; it < qsz; it++) {
+
             AccTask t = accTaskQueue.front();
-            bool issued = false;
-            if (idxToAccPE.find(t.idx)!=idxToAccPE.end()){
-                int pe = idxToAccPE[t.idx];
-                    accUnits[pe]->setParams(
-                        partialSums[t.idx],
-                        remainingCounts[t.idx]
-                    );
-                    if (accUnits[pe]->push(t.product, t.idx)) {
-                        accBusy[pe] = t.idx;
-                        accLoad[pe]++;
-                        issued = true;
-                    }
-            }
-            else{
-                int home = findFreeAccPE(t.idx);
+            int pe = -1;
 
-                if (home == -1){
-                    break;
-                }
-
-                for (int off = 0; off < numPEs; off++) {
-                    int pe = (home + off) % numPEs;
-
-                    if (accBusy[pe] == -1) {
-                        accUnits[pe]->setParams(
-                            partialSums[t.idx],
-                            remainingCounts[t.idx]
-                        );
-                        if (accUnits[pe]->push(t.product, t.idx)) {
-                            accBusy[pe] = t.idx;
-                            accLoad[pe]++;
-                            idxToAccPE[t.idx]=pe;
-                            issued = true;
-                            break;
-                        }
-                    }
-                }
+            auto itOwner = idxToAccPE.find(t.idx);
+            if (itOwner != idxToAccPE.end()) {
+                pe = itOwner->second;
             }
-            if (issued){
-                accTaskQueue.pop();
-                continue;
+            else {
+                
+                pe = findFreeAccPE(t.idx);
+                if (pe == -1)
+                    return;
+
+                idxToAccPE[t.idx] = pe;
+
+                accUnits[pe]->setParams(
+                    partialSums[t.idx],
+                    remainingCounts[t.idx]
+                );
             }
+
+            if (!accUnits[pe]->push(t.product, t.idx)) {
+                return;
+            }
+            accBusy[pe] = t.idx;
+            accLoad[pe]++;
+
+            accTaskQueue.pop();
         }
-        return ;
     }
+
 
 
     int AcceleratorDriver::findFreeAccPE(int idx)
@@ -230,12 +214,17 @@ namespace gem5 {
     void AcceleratorDriver::
     onAccReady(int pe, float sum, int remaining,int idx)
     {
-        if (remaining==0){
+        remainingCounts[idx]--;
+        if (remainingCounts[idx] < 0) {
+    panic("remainingCounts < 0 for idx=%d\n", idx);
+}
+
+        if (remainingCounts[idx]==0){
             currentOut[idx/currentCols][idx%currentCols]=sum;
-            numWrites++; // write output
+            numWrites++;
             completedTasks++;
             partialSums[idx]=0.0f;
-            remainingCounts[idx]=(phase==PHASE_QK?Kdim:N);
+            // remainingCounts[idx]=(phase==PHASE_QK?Kdim:N);
             accUnits[pe]->reset(phase==PHASE_QK?Kdim:N);
             accLoad[pe]--;
             accBusy[pe]=-1;
@@ -251,7 +240,6 @@ namespace gem5 {
             }
         }else{
             partialSums[idx]=sum;
-            remainingCounts[idx]=remaining;
             accBusy[pe]=idx;
             accLoad[pe]--;
             idxToAccPE[idx]=pe;

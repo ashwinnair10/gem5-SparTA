@@ -40,3 +40,4 @@ typings
 .DS_Store
 stats
 configs/sparta/inputs
+stats_sweep

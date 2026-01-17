@@ -47,18 +47,9 @@ namespace gem5{
             int idx;
         };
         std::queue<AccTask> accTaskQueue;
-         //is fifo buffer needed for acc partial sums?
-        //  or both map and queue for new products to be scheduled
-        std::unordered_map<int, float> partialSums; //idx->partial sum
+        std::unordered_map<int, float> partialSums;
         std::unordered_map<int, int> remainingCounts;
-        // idx -> remaining products to be added
 
-        struct PEState
-        {
-            int currIdx;  //if currIdx is -1 it is free, else busy
-        };
-        std::vector<int> mulBusy;
-        //int is PEState with currIDx if busy else -1
         std::vector<int> accBusy;
         uint64_t hashSeed = 0;
         std::vector<int> accLoad;
