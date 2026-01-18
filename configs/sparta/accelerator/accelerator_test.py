@@ -87,14 +87,18 @@ parser.add_argument(
     "-n", "--numPEs", type=int, required=True, help="number of PES"
 )
 parser.add_argument(
-    "-q", "--queueSize", type=int, required=True, help="queue size for PEs"
+    "--mulQueueSize", type=int, required=True, help="queue size for Mul PEs"
+)
+parser.add_argument(
+    "--accQueueSize", type=int, required=True, help="queue size for Acc PEs"
 )
 args = parser.parse_args()
 
 d_model = args.dmodel
 seq_len = args.seqlen
 num = args.numPEs
-queue_size = args.queueSize
+mul_queue_size = args.mulQueueSize
+acc_queue_size = args.accQueueSize
 
 X = np.load("configs/sparta/inputs/X.npy").tolist()
 W = np.load("configs/sparta/inputs/W.npy").tolist()
@@ -117,16 +121,18 @@ Output_m, Output_base, Output_mm = alloc_shared_matrix(seq_len, d_model)
 root = Root(full_system=False)
 
 mul_list = [
-    PE_Mul(latency=5, island=i, queue_size=queue_size) for i in range(num)
+    PE_Mul(latency=5, island=i, queue_size=mul_queue_size) for i in range(num)
 ]
 acc_list = [
-    PE_Acc(latency=3, island=i, queue_size=queue_size) for i in range(num)
+    PE_Acc(latency=3, island=i, queue_size=acc_queue_size) for i in range(num)
 ]
 
 root.drv = AcceleratorDriver(
     numPEs=num,
     mul_units=mul_list,
     acc_units=acc_list,
+    mul_queue_depth=mul_queue_size,
+    acc_queue_depth=acc_queue_size,
     Q=ctypes.cast(Q_m, ctypes.c_void_p).value,
     K=ctypes.cast(K_m, ctypes.c_void_p).value,
     V=ctypes.cast(V_m, ctypes.c_void_p).value,

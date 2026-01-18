@@ -21,40 +21,14 @@ namespace gem5{
 
         float **Q, **K, **V;
         float **Scores, **Prob, **Output;
+
         float **currentOut;
 
         int M, N, Kdim;
-        int numPEs;
-        int currentCols;
 
-        uint64_t totalTasks;
-        uint64_t completedTasks;
+        int numPEs;
 
         EventFunctionWrapper startEvent;
-
-        bool retryPending;
-
-        struct MulTask
-        {
-            float a,b;
-            int idx;
-        };
-        std::queue<MulTask> mulTaskQueue;
-
-        struct AccTask
-        {
-            float product;
-            int idx;
-        };
-        std::queue<AccTask> accTaskQueue;
-        std::unordered_map<int, float> partialSums;
-        std::unordered_map<int, int> remainingCounts;
-
-        std::vector<int> accBusy;
-        uint64_t hashSeed = 0;
-        std::vector<int> accLoad;
-        std::unordered_map<int, int> idxToAccPE;
-
 
         enum Phase
         {
@@ -64,6 +38,44 @@ namespace gem5{
             PHASE_AV,
             PHASE_DONE
         } phase;
+
+        int currentCols;
+
+        uint64_t totalTasks;
+        uint64_t completedTasks;
+
+        struct MulTask
+        {
+            float a,b;
+            int idx;
+        };
+
+        std::queue<MulTask> mulTaskQueue;
+
+        struct AccTask
+        {
+            float product;
+            int sid;
+        };
+        std::queue<AccTask> accTaskQueue;
+
+        // std::unordered_map<int, float> partialSums;
+        // std::unordered_map<int, int> remainingCounts;
+
+        std::vector<int> remaining;
+        std::unordered_map<int,int> idxToSID;
+        std::vector<int> accBusy;
+        uint64_t hashSeed = 0;
+        std::vector<int> mulLoad;
+        std::unordered_map<int, int> sidToAccPE;
+
+        int maxLiveOps;
+        std::queue<int> freeSIDs;
+        std::vector<int> sidToIdx;
+        std::vector<int> sidRemainingAcc;
+        std::vector<int> sidRemainingMul;
+        std::vector<float> sidPartialSum;
+
 
         AcceleratorDriver(const AcceleratorDriverParams &p);
 
@@ -76,10 +88,10 @@ namespace gem5{
 
         void tryScheduleMul();
         void tryScheduleAcc();
-        int findFreeAccPE(int idx);
+        int findFreeAccPE(int sid);
 
-        void onProductReady(int pe, float product,int idx);
-        void onAccReady(int pe, float sum, int remaining,int idx);
+        void onProductReady(int pe, float product,int sid);
+        void onAccReady(int pe, float sum, int remaining,int sid);
 
         void onQKDone();
         void onAVDone();
@@ -102,6 +114,9 @@ namespace gem5{
         statistics::Scalar stallCycles;
 
         void regStats() override;
+
+        int allocSID(int idx,int nnz);
+        void freeSID(int sid);
 
     };
 }

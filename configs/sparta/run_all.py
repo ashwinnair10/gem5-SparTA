@@ -31,8 +31,10 @@ def run_test(name, script, outdir, args):
         str(args.dmodel),
         "--seqlen",
         str(args.seqlen),
-        "--queueSize",
-        str(args.queueSize),
+        "--mulQueueSize",
+        str(args.mulQueueSize),
+        "--accQueueSize",
+        str(args.accQueueSize),
     ]
 
     if name != "Sequential":
@@ -56,7 +58,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dmodel", type=int, required=True)
 parser.add_argument("-s", "--seqlen", type=int, required=True)
 parser.add_argument("-n", "--numPEs", type=int, required=True)
-parser.add_argument("-q", "--queueSize", type=int, required=True)
+parser.add_argument("--mulQueueSize", type=int, required=True)
+parser.add_argument("--accQueueSize", type=int, required=True)
 
 # sparsity params (forwarded to gen_inputs.py)
 parser.add_argument(

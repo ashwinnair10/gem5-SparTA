@@ -84,13 +84,17 @@ parser.add_argument(
     "-s", "--seqlen", type=int, required=True, help="sequence length"
 )
 parser.add_argument(
-    "-q", "--queueSize", type=int, required=True, help="queue size for PEs"
+    "--mulQueueSize", type=int, required=True, help="queue size for Mul PEs"
+)
+parser.add_argument(
+    "--accQueueSize", type=int, required=True, help="queue size for Acc PEs"
 )
 args = parser.parse_args()
 
 d_model = args.dmodel
 seq_len = args.seqlen
-queue_size = args.queueSize
+mul_queue_size = args.mulQueueSize
+acc_queue_size = args.accQueueSize
 
 X = np.load("configs/sparta/inputs/X.npy").tolist()
 W = np.load("configs/sparta/inputs/W.npy").tolist()
@@ -112,8 +116,8 @@ Output_m, Output_base, Output_mm = alloc_shared_matrix(seq_len, d_model)
 
 root = Root(full_system=False)
 
-root.mul = PE_Mul(latency=5, queue_size=queue_size)
-root.acc = PE_Acc(latency=3, queue_size=queue_size)
+root.mul = PE_Mul(latency=5, queue_size=mul_queue_size)
+root.acc = PE_Acc(latency=3, queue_size=acc_queue_size)
 root.mm = MatMul(mul=root.mul, acc=root.acc)
 
 root.drv = BaselineDriverSequential(

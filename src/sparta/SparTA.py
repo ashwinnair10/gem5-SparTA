@@ -76,6 +76,8 @@ class AcceleratorDriver(SimObject):
     numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
     mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
     acc_units = VectorParam.PE_Acc([], "List of PE_Acc units")
+    mul_queue_depth = Param.Int("Depth of PE_Mul queue")
+    acc_queue_depth = Param.Int("Depth of PE_Acc queue")
     Q = Param.Addr("Pointer to Q")
     K = Param.Addr("Pointer to K")
     V = Param.Addr("Pointer to V")
