@@ -22,6 +22,7 @@ namespace gem5 {
         numPEs(p.numPEs),
         startEvent([this]{ start(); }, "baseline_start_event"),
         retryEvent([this]{ retryStalled(); }, "baseline_retry_event"),
+        tickEvent([this]{ tick(); }, "baseline_tick_event"),
         phase(PHASE_IDLE)
     {
         softmaxRow = new float[N];
@@ -35,6 +36,20 @@ namespace gem5 {
         completedTasks = 0;
     }
 
+    void BaselineDriverParallel::tick(){
+        if (phase == PHASE_DONE)
+        return;
+
+        bool stalled =
+            !stallMulQueue.empty() ||
+            !stallAccQueue.empty();
+
+        if (stalled)
+            stallCycles++;
+
+        schedule(tickEvent, curTick() + 1);
+    }
+
     void BaselineDriverParallel::startup()
     {
         std::cout << "[SparTA-BASE] startup with " << numPEs << " PEs\n";
@@ -44,11 +59,12 @@ namespace gem5 {
                     this->onProductReady(i, product,idx);
                 });
             accUnits[i]->setCallback(
-                [this, i](float sum, int remaining,int idx){
-                    this->onAccReady(i, sum, remaining,idx);
+                [this, i](float sum,int idx){
+                    this->onAccReady(i, sum,idx);
                 });
         }
         schedule(startEvent, curTick() + 1);
+        schedule(tickEvent, curTick() + 1);
     }
 
     void BaselineDriverParallel::start()
@@ -57,6 +73,10 @@ namespace gem5 {
         phase = PHASE_QK;
         currentOut=Scores;
         currentCols=N;
+        numReads  += M * Kdim;
+        numReads  += N * Kdim;
+        numWrites += M * N;
+
         dispatchMatMul(Q, K, Scores, M, N, Kdim);
     }
 
@@ -64,9 +84,9 @@ namespace gem5 {
     BaselineDriverParallel::dispatchMatMul(float **A, float **B, float **C,
                                         int M, int N, int K)
     {
-        for (auto acc:accUnits){
-            acc->reset(K);
-        }
+        partialSums.assign(M * N, 0.0f);
+        remainingCounts.assign(M * N, K);
+
         totalTasks = M * N;
         completedTasks = 0;
         for (int i = 0; i < M; i++) {
@@ -75,8 +95,6 @@ namespace gem5 {
                     int mul_id = (i*N+j) % numPEs;
                     float a = A[i][k];
                     float b = B[k][j];
-                    numReads += 2; // read A[i][k] and B[k][j]
-                    // mulUnits[mul_id]->startCompute(a, b,i*N+j);
                     if (!mulUnits[mul_id]->push(a, b,i*N+j)){
                         stallMulQueue.push(std::make_tuple(a,b,i*N+j));
                         if (!retryEvent.scheduled())
@@ -95,17 +113,16 @@ namespace gem5 {
                 schedule(retryEvent, curTick() + 1);
             return;
         }
-        // accUnits[pe]->feedProduct(product,idx);
     }
 
     void BaselineDriverParallel::
-    onAccReady(int pe, float sum, int remaining,int idx)
+    onAccReady(int pe, float sum,int idx)
     {
-        if (remaining==0){
-            currentOut[idx/currentCols][idx%currentCols]=sum;
-            numWrites++; // write output
+        partialSums[idx] += sum;
+        remainingCounts[idx]--;
+        if (remainingCounts[idx]==0){
+            currentOut[idx/currentCols][idx%currentCols]=partialSums[idx];
             completedTasks++;
-            accUnits[pe]->reset(phase==PHASE_QK?Kdim:N);
             if (completedTasks == totalTasks) {
                 if (phase == PHASE_QK) {
                     onQKDone();
@@ -121,7 +138,6 @@ namespace gem5 {
     {
         bool stalled = false;
 
-        // Retry MUL queue
         size_t mul_sz = stallMulQueue.size();
         for (size_t i = 0; i < mul_sz; i++) {
             auto [a, b, idx] = stallMulQueue.front();
@@ -134,7 +150,6 @@ namespace gem5 {
             }
         }
 
-        // Retry ACC queue
         size_t acc_sz = stallAccQueue.size();
         for (size_t i = 0; i < acc_sz; i++) {
             auto [product, idx] = stallAccQueue.front();
@@ -147,11 +162,8 @@ namespace gem5 {
             }
         }
 
-        // Reschedule if still stalled
         if (stalled || !stallMulQueue.empty() || !stallAccQueue.empty()) {
             schedule(retryEvent, curTick() + 1);
-            if (!stallMulQueue.empty() || !stallAccQueue.empty())
-                stallCycles++;   // add this stat
         }
     }
 
@@ -178,6 +190,9 @@ namespace gem5 {
             for (int j = 0; j < N; j++)
                 Prob[i][j] = softmaxRow[j] / s;
         }
+        numReads  += M * N;
+        numWrites += M * N;
+
     }
 
     void BaselineDriverParallel::startAV()
@@ -186,6 +201,10 @@ namespace gem5 {
         std::cout << "[SparTA-BASE] Starting A*V\n";
         currentOut=Output;
         currentCols=Kdim;
+        numReads  += M * N;
+        numReads  += N * Kdim;
+        numWrites += M * Kdim;
+
         dispatchMatMul(Prob, V, Output, M, Kdim, N);
     }
 
@@ -198,6 +217,8 @@ namespace gem5 {
 
     void BaselineDriverParallel::regStats()
     {
+        using namespace statistics;
+        SimObject::regStats();
         numReads
             .name(name() + ".numReads")
             .desc("Number of reads performed by the baseline driver");
@@ -207,13 +228,5 @@ namespace gem5 {
         stallCycles
             .name(name() + ".stallCycles")
             .desc("Number of cycles stalled due to full PE queues");
-        for (size_t i = 0; i < mulUnits.size(); ++i) {
-            if (mulUnits[i])
-                mulUnits[i]->regStats();
-        }
-        for (size_t i = 0; i < accUnits.size(); ++i) {
-            if (accUnits[i])
-                accUnits[i]->regStats();
-        }
     }
 }

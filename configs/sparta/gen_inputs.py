@@ -30,16 +30,15 @@ def block_sparsity(mat, block_size, sparsity):
 
 
 def local_attention_sparsity(X, window):
-    """
-    Sliding window causal attention:
-    token i attends to [i-window, ..., i]
-    """
     seqlen, dmodel = X.shape
     X = X.copy()
 
     for i in range(seqlen):
-        if i - window > 0:
-            X[: i - window, :] = 0.0
+        left = max(0, i - window)
+        right = i + 1
+        X[i, :left] = 0.0
+        X[i, right:] = 0.0
+
     return X
 
 

@@ -22,6 +22,7 @@ class BaselineDriverSequential : public SimObject
     int M, N, Kdim;
 
     EventFunctionWrapper startEvent;
+    EventFunctionWrapper tickEvent;
 
     enum Phase
     {
@@ -36,6 +37,7 @@ class BaselineDriverSequential : public SimObject
 
     statistics::Scalar numReads;
     statistics::Scalar numWrites;
+    statistics::Scalar stallCycles;
 
     void regStats() override;
 
@@ -45,6 +47,8 @@ class BaselineDriverSequential : public SimObject
     void startup() override;
 
     void start();
+
+    void tick();
 
     void onQKDone();
     void onAVDone();

@@ -30,8 +30,13 @@ namespace gem5{
         std::queue<std::tuple<float,float,int>> stallMulQueue;
         std::queue<std::pair<float,int>> stallAccQueue;
 
+        std::vector<float> partialSums;
+        std::vector<int> remainingCounts;
+
+
         EventFunctionWrapper startEvent;
         EventFunctionWrapper retryEvent;
+        EventFunctionWrapper tickEvent;
 
         enum Phase
         {
@@ -52,7 +57,7 @@ namespace gem5{
         dispatchMatMul(float **A, float **B, float **C, int M, int N, int K);
 
         void onProductReady(int pe, float product,int idx);
-        void onAccReady(int pe, float sum, int remaining,int idx);
+        void onAccReady(int pe, float sum,int idx);
         void retryStalled();
 
         void onQKDone();
@@ -67,6 +72,7 @@ namespace gem5{
         statistics::Scalar stallCycles;
 
         void regStats() override;
+        void tick();
     };
 }
 

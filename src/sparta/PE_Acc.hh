@@ -13,9 +13,9 @@ namespace gem5{
   {
     public:
 
-      std::function<void(float,int,int)> callback;
+      std::function<void(float,int)> callback;
       std::queue<std::pair<float,int>> inputQueue;
-      void setCallback(std::function<void(float,int,int)> cb)
+      void setCallback(std::function<void(float,int)> cb)
       {
         callback = cb;
       }
@@ -26,22 +26,20 @@ namespace gem5{
 
       void processNext();
 
-      void setParams(float sum, int remaining);
-
-      void feedProduct(float product,int id);
-
       bool push(float product,int id);
-
-      void reset(int num_ops);
 
       float getFinalResult() const {return current_sum;}
       void regStats() override;
+      bool isFull() const {
+          return inputQueue.size() == queue_size;
+      }
 
     private:
       Tick latency;
       int island;
       int queue_size;
       EventFunctionWrapper computeEvent;
+      EventFunctionWrapper tickEvent;
       static constexpr const char* YELLOW = "\033[33m";
       static constexpr const char* RESET = "\033[0m";
       float current_sum;
@@ -50,6 +48,7 @@ namespace gem5{
       int remaining_ops;
       bool busy;
       void finishCompute();
+      void tick();
 
       statistics::Scalar numAccOps;
       statistics::Scalar activeCycles;

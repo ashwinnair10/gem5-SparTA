@@ -21,11 +21,14 @@ namespace gem5{
 
       void startup() override;
 
-      void startCompute(float val1,float val2,int id);
 
       bool push(float val1,float val2,int id);
 
       float getResult() const {return result;}
+
+      bool isFull() const {
+          return inputQueue.size() == queue_size;
+      }
 
       void regStats() override;
 
@@ -34,6 +37,8 @@ namespace gem5{
       int island;
       int queue_size;
       EventFunctionWrapper computeEvent;
+      EventFunctionWrapper tickEvent;
+      bool busy;
       float operand1;
       float operand2;
       int id;
@@ -41,6 +46,7 @@ namespace gem5{
       static constexpr const char* GREEN = "\033[32m";
       static constexpr const char* RESET = "\033[0m";
       void processNext();
+      void tick();
       void finishCompute();
 
       statistics::Scalar numMulOps;

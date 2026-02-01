@@ -23,8 +23,11 @@ namespace gem5{
       std::function<void()> finishedCallback;
       std::queue<std::tuple<float,float,int>> stallMulQueue;
       std::queue<std::pair<float,int>> stallAccQueue;
+      std::vector<float> partialSums;
+      std::vector<int> remainingCounts;
 
       EventFunctionWrapper retryEvent;
+      EventFunctionWrapper tickEvent;
       statistics::Scalar stallCycles;
 
       void setFinishedCallback(std::function<void()> cb) {
@@ -43,7 +46,7 @@ namespace gem5{
 
       void onMulDone(float product,int idx);
 
-      void onAccDone(float partial,int remaining_ops,int idx);
+      void onAccDone(float partial,int idx);
 
       bool isDone() const { return done;}
 
@@ -51,6 +54,7 @@ namespace gem5{
 
     private:
         void regStats() override;
+        void tick();
   };
 }
 

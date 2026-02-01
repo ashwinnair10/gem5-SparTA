@@ -35,6 +35,10 @@ def run_test(name, script, outdir, args):
         str(args.mulQueueSize),
         "--accQueueSize",
         str(args.accQueueSize),
+        "--mulLatency",
+        str(args.mulLatency),
+        "--accLatency",
+        str(args.accLatency),
     ]
 
     if name != "Sequential":
@@ -60,6 +64,8 @@ parser.add_argument("-s", "--seqlen", type=int, required=True)
 parser.add_argument("-n", "--numPEs", type=int, required=True)
 parser.add_argument("--mulQueueSize", type=int, required=True)
 parser.add_argument("--accQueueSize", type=int, required=True)
+parser.add_argument("--accLatency", type=int, default=2)
+parser.add_argument("--mulLatency", type=int, default=4)
 
 # sparsity params (forwarded to gen_inputs.py)
 parser.add_argument(

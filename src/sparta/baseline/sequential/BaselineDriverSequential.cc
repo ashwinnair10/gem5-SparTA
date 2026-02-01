@@ -19,9 +19,20 @@ namespace gem5 {
         Output(reinterpret_cast<float **>(p.Output)),
         M(p.M), N(p.N), Kdim(p.Kdim),
         startEvent([this]{ start(); }, "baseline_start_event"),
+        tickEvent([this]{ tick(); }, "baseline_tick_event"),
         phase(PHASE_IDLE)
     {
         softmaxRow = new float[N];
+    }
+
+    void BaselineDriverSequential::tick()
+    {
+        if (phase == PHASE_DONE)
+            return;
+        if (phase == PHASE_QK || phase == PHASE_AV)
+            stallCycles++;
+
+        schedule(tickEvent, curTick() + 1);
     }
 
     void BaselineDriverSequential::startup()
@@ -34,6 +45,7 @@ namespace gem5 {
                 onAVDone();
         });
         schedule(startEvent, curTick() + 1);
+        schedule(tickEvent, curTick() + 1);
     }
 
     void BaselineDriverSequential::start()
@@ -46,7 +58,8 @@ namespace gem5 {
             (uint64_t)Scores,
             M, N, Kdim
         );
-        numReads += M * N * Kdim * 2;   // A and B
+        numReads  += M * Kdim;
+        numReads  += N * Kdim;
         numWrites += M * N;
     }
 
@@ -72,6 +85,8 @@ namespace gem5 {
             for (int j = 0; j < N; j++)
                 Prob[i][j] = softmaxRow[j] / s;
         }
+        numReads  += M * N;
+        numWrites += M * N;
         std::cout << "[SparTA-BASE] Softmax done.\n";
     }
 
@@ -85,6 +100,9 @@ namespace gem5 {
             (uint64_t)Output,
             M, Kdim, N
         );
+        numReads  += M * N;
+        numReads  += N * Kdim;
+        numWrites += M * Kdim;
     }
 
     void BaselineDriverSequential::onAVDone()
@@ -107,6 +125,11 @@ namespace gem5 {
         numWrites
             .name(name() + ".num_writes")
             .desc("Number of writes performed by the Baseline Driver")
+            ;
+
+        stallCycles
+            .name(name() + ".stall_cycles")
+            .desc("Number of cycles the Baseline Driver was stalled")
             ;
     }
 

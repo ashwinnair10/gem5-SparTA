@@ -9,14 +9,28 @@ namespace gem5{
         island(p.island),
         queue_size(p.queue_size),
         computeEvent([this]{ finishCompute(); },
-                    "sparta_mul_compute_event")
+                    "sparta_mul_compute_event"),
+        tickEvent([this]{ tick(); },
+                  "sparta_mul_tick_event"),
+        busy(false)
     {
+    }
+
+    void PE_Mul::tick()
+    {
+        if (busy){
+            activeCycles++;
+        } else {
+            idleCycles++;
+        }
+        schedule(tickEvent, curTick() + 1);
     }
 
     void PE_Mul::startup()
     {
-        std::cout << GREEN<< "[SparTA-MUL-"<<island<<"] startup. Latency = "
-                << latency << " cycles\n"<< RESET;
+        // std::cout << GREEN<< "[SparTA-MUL-"<<island<<"] startup. Latency = "
+        //         << latency << " cycles\n"<< RESET;
+        schedule(tickEvent, curTick()+1);
     }
 
     void PE_Mul::processNext(){
@@ -28,25 +42,15 @@ namespace gem5{
             operand2=std::get<1>(operands);
             id=std::get<2>(operands);
             result=0.0f;
-            std::cout << GREEN
-                << "[SparTA-MUL-"<<island<<"] Start -- Operand 1 : "
-                << operand1 << " , Operand 2 : " << operand2
-                << " -- index: " << std::get<2>(operands)
-                << " --  @ tick " << curTick() << "\n"<< RESET;
+            busy=true;
+            // std::cout << GREEN
+            //     << "[SparTA-MUL-"<<island<<"] Start -- Operand 1 : "
+            //     << operand1 << " , Operand 2 : " << operand2
+            //     << " -- index: " << std::get<2>(operands)
+            //     << " --  @ tick " << curTick() << "\n"<< RESET;
             schedule(computeEvent, curTick() + latency);
         }
-        else{
-            idleCycles++;
-        }
     }
-
-    // void PE_Mul::startCompute(float val1,float val2,int i)
-    // {
-    //     inputQueue.push({val1,val2,i});
-    //     if (!computeEvent.scheduled()){
-    //         processNext();
-    //     }
-    // }
 
     bool PE_Mul::push(float val1,float val2,int i)
     {
@@ -63,11 +67,11 @@ namespace gem5{
     void PE_Mul::finishCompute()
     {
         result=operand1*operand2;
-        std::cout << GREEN
-            << "[SparTA-MUL-"<<island<<"] Finished compute -- Result : "
-            << result << " -- @ tick " << curTick() << "\n"<< RESET;
-        activeCycles+=latency;
+        // std::cout << GREEN
+        //     << "[SparTA-MUL-"<<island<<"] Finished compute -- Result : "
+        //     << result << " -- @ tick " << curTick() << "\n"<< RESET;
         numMulOps++;
+        busy=false;
         if (callback){
             callback(result,id);
         }

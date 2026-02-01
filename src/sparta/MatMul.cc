@@ -10,10 +10,23 @@ namespace gem5{
         mul(p.mul),
         acc(p.acc),
         retryEvent([this]{ retryStalled(); },
-                    "sparta_matmul_retry_event")
+                    "sparta_matmul_retry_event"),
+        tickEvent([this]{tick(); },
+                  "sparta_matmul_tick_event")
         {}
+
+    void MatMul::tick(){
+        bool hasPending =
+        !stallMulQueue.empty() ||
+        !stallAccQueue.empty();
+
+        if (hasPending)
+            stallCycles++;
+        schedule(tickEvent, curTick() + 1);
+    }
     void MatMul::startup(){
         std::cout << "[SparTA-MATMUL] startup\n";
+        schedule(tickEvent, curTick()+1);
     }
     void MatMul::startMatMul(uint64_t A_ptr,
                          uint64_t B_ptr,
@@ -27,15 +40,18 @@ namespace gem5{
         N = _N;
         K = _K;
 
+        partialSums.assign(M * N, 0.0f);
+        remainingCounts.assign(M * N, K);
+
+
         mul->setCallback([&](float product,int idx) {
             this->onMulDone(product,idx);
         });
-        acc->setCallback([&](float sum, int remaining,int idx) {
-            this->onAccDone(sum, remaining,idx);
+        acc->setCallback([&](float sum,int idx) {
+            this->onAccDone(sum,idx);
         });
         done=false;
         i = j = k = 0;
-        acc->reset(K);
         if (!mul->push(A[i][k], B[k][j],i*N+j)){
             stallMulQueue.push({A[i][k], B[k][j],i*N+j});
             if (!retryEvent.scheduled())
@@ -52,8 +68,10 @@ namespace gem5{
         }
     }
 
-    void MatMul::onAccDone(float partial,int remaining_ops,int idx){
-        if (remaining_ops>0){
+    void MatMul::onAccDone(float partial,int idx){
+        partialSums[idx] += partial;
+        remainingCounts[idx]--;
+        if (remainingCounts[idx]>0){
             k++;
             if (!mul->push(A[i][k], B[k][j],i*N+j)){
                 stallMulQueue.push({A[i][k], B[k][j],i*N+j});
@@ -62,11 +80,10 @@ namespace gem5{
             }
             return;
         }
-        C[i][j]=partial;
+        C[i][j]=partialSums[idx];
         j++;
         if (j<N){
             k=0;
-            acc->reset(K);
             if (!mul->push(A[i][k], B[k][j],i*N+j)){
                 stallMulQueue.push({A[i][k], B[k][j],i*N+j});
                 if (!retryEvent.scheduled())
@@ -78,8 +95,11 @@ namespace gem5{
         if (i<M){
             j=0;
             k=0;
-            acc->reset(K);
-            mul->push(A[i][k],B[k][j],i*N+j);
+            if (!mul->push(A[i][k], B[k][j],i*N+j)){
+                stallMulQueue.push({A[i][k], B[k][j],i*N+j});
+                if (!retryEvent.scheduled())
+                    schedule(retryEvent, curTick() + 1);
+            }
             return;
         }
         std::cout << "[SparTA-MatMul] Finished matrix multiplication @ tick "
@@ -94,7 +114,6 @@ namespace gem5{
 
         bool stalled = false;
 
-        // Retry MUL ops
         size_t msz = stallMulQueue.size();
         for (size_t i = 0; i < msz; i++) {
             auto [a, b, idx] = stallMulQueue.front();
@@ -106,7 +125,6 @@ namespace gem5{
             }
         }
 
-        // Retry ACC ops
         size_t asz = stallAccQueue.size();
         for (size_t i = 0; i < asz; i++) {
             auto [prod, idx] = stallAccQueue.front();
@@ -120,8 +138,6 @@ namespace gem5{
 
         if (stalled || !stallMulQueue.empty() || !stallAccQueue.empty()) {
             schedule(retryEvent, curTick() + 1);
-            if (!stallMulQueue.empty() || !stallAccQueue.empty())
-                stallCycles++;
         }
 
     }

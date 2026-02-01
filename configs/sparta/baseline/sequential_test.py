@@ -89,12 +89,20 @@ parser.add_argument(
 parser.add_argument(
     "--accQueueSize", type=int, required=True, help="queue size for Acc PEs"
 )
+parser.add_argument(
+    "--mulLatency", type=int, default=4, help="latency for Mul PEs"
+)
+parser.add_argument(
+    "--accLatency", type=int, default=2, help="latency for Acc PEs"
+)
 args = parser.parse_args()
 
 d_model = args.dmodel
 seq_len = args.seqlen
 mul_queue_size = args.mulQueueSize
 acc_queue_size = args.accQueueSize
+mul_latency = args.mulLatency
+acc_latency = args.accLatency
 
 X = np.load("configs/sparta/inputs/X.npy").tolist()
 W = np.load("configs/sparta/inputs/W.npy").tolist()
@@ -115,13 +123,18 @@ Prob_m, Prob_base, Prob_mm = alloc_shared_matrix(seq_len, seq_len)
 Output_m, Output_base, Output_mm = alloc_shared_matrix(seq_len, d_model)
 
 root = Root(full_system=False)
+system = System(
+    clk_domain=SrcClockDomain(clock="1GHz", voltage_domain=VoltageDomain())
+)
+root.system = system
 
-root.mul = PE_Mul(latency=5, queue_size=mul_queue_size)
-root.acc = PE_Acc(latency=3, queue_size=acc_queue_size)
-root.mm = MatMul(mul=root.mul, acc=root.acc)
 
-root.drv = BaselineDriverSequential(
-    mm=root.mm,
+system.mul = PE_Mul(latency=mul_latency, queue_size=mul_queue_size)
+system.acc = PE_Acc(latency=acc_latency, queue_size=acc_queue_size)
+system.mm = MatMul(mul=system.mul, acc=system.acc)
+
+system.drv = BaselineDriverSequential(
+    mm=system.mm,
     Q=ctypes.cast(Q_m, ctypes.c_void_p).value,
     K=ctypes.cast(K_m, ctypes.c_void_p).value,
     V=ctypes.cast(V_m, ctypes.c_void_p).value,

@@ -29,6 +29,7 @@ namespace gem5{
         int numPEs;
 
         EventFunctionWrapper startEvent;
+        EventFunctionWrapper tickEvent;
 
         enum Phase
         {
@@ -59,13 +60,10 @@ namespace gem5{
         };
         std::queue<AccTask> accTaskQueue;
 
-        // std::unordered_map<int, float> partialSums;
-        // std::unordered_map<int, int> remainingCounts;
-
         std::vector<int> remaining;
         std::unordered_map<int,int> idxToSID;
         std::vector<int> accBusy;
-        uint64_t hashSeed = 0;
+        uint64_t hashSeed = 1632093731;
         std::vector<int> mulLoad;
         std::unordered_map<int, int> sidToAccPE;
 
@@ -91,7 +89,7 @@ namespace gem5{
         int findFreeAccPE(int sid);
 
         void onProductReady(int pe, float product,int sid);
-        void onAccReady(int pe, float sum, int remaining,int sid);
+        void onAccReady(int pe, float sum,int sid);
 
         void onQKDone();
         void onAVDone();
@@ -117,6 +115,8 @@ namespace gem5{
 
         int allocSID(int idx,int nnz);
         void freeSID(int sid);
+
+        void tick();
 
     };
 }

@@ -21,6 +21,7 @@ namespace gem5 {
         M(p.M), N(p.N), Kdim(p.Kdim),
         numPEs(p.numPEs),
         startEvent([this]{ start(); }, "start_event"),
+        tickEvent([this]{tick();},"tick_event"),
         phase(PHASE_IDLE)
     {
         softmaxRow = new float[N];
@@ -36,7 +37,7 @@ namespace gem5 {
         mulLoad.resize(numPEs,0);
         remaining.resize(M*N,0);
 
-        maxLiveOps=numPEs*(2*std::max(p.mul_queue_depth,p.acc_queue_depth)+1);
+        maxLiveOps=numPEs*(p.mul_queue_depth+p.acc_queue_depth+1)*4;
         sidToIdx.resize(maxLiveOps);
         sidRemainingMul.resize(maxLiveOps);
         sidRemainingAcc.resize(maxLiveOps);
@@ -45,6 +46,30 @@ namespace gem5 {
         for (int i = 0; i < maxLiveOps; i++)
             freeSIDs.push(i);
     }
+
+    void AcceleratorDriver::tick()
+    {
+        std::cout
+            << "[SparTA-AccDriver] Tick : " << curTick() << "\n";
+        if (phase == PHASE_DONE)
+            return;
+
+        bool mulBlocked =
+            !mulTaskQueue.empty() &&
+            std::all_of(mulUnits.begin(), mulUnits.end(),
+                [](auto *m){ return m->isFull(); });
+
+        bool accBlocked =
+            !accTaskQueue.empty() &&
+            std::all_of(accUnits.begin(), accUnits.end(),
+                [](auto *a){ return a->isFull(); });
+
+        if (mulBlocked || accBlocked)
+            stallCycles++;
+
+        schedule(tickEvent, curTick() + 1);
+    }
+
 
     void AcceleratorDriver::startup()
     {
@@ -56,11 +81,12 @@ namespace gem5 {
                     this->onProductReady(i, product,sid);
                 });
             accUnits[i]->setCallback(
-                [this, i](float sum, int remaining,int sid){
-                    this->onAccReady(i, sum, remaining,sid);
+                [this, i](float sum,int sid){
+                    this->onAccReady(i, sum,sid);
                 });
         }
         schedule(startEvent, curTick() + 1);
+        schedule(tickEvent, curTick() + 1);
     }
 
     void AcceleratorDriver::start()
@@ -69,6 +95,10 @@ namespace gem5 {
         phase = PHASE_QK;
         currentOut=Scores;
         currentCols=N;
+        numReads  += M * Kdim;
+        numReads  += N * Kdim;
+        numWrites += M * N;
+
         dispatchMatMul(Q, K, Scores, M, N, Kdim);
     }
 
@@ -78,9 +108,6 @@ namespace gem5 {
     {
         remaining.clear();
         remaining.resize(M*N);
-        // freeSIDs.clear();
-        // for (int i = 0; i < maxLiveOps; i++)
-        //     freeSIDs.push(i);
         assert(freeSIDs.size() == maxLiveOps);
 
         mulTaskQueue = std::queue<MulTask>();
@@ -121,33 +148,36 @@ namespace gem5 {
 
         for (size_t it = 0; it < qsz; it++) {
             MulTask t = mulTaskQueue.front();
-            int sid;
+
             bool issued = false;
 
-            auto itSid=idxToSID.find(t.idx);
+            auto sid=idxToSID.find(t.idx)==idxToSID.end()?
+                 -1 : idxToSID[t.idx];
 
-            if (itSid==idxToSID.end()){
-                if (freeSIDs.empty())
-                return;
-                sid=allocSID(t.idx,remaining[t.idx]);
-                idxToSID[t.idx]=sid;
-            }
-            else{
-                sid=itSid->second;
-            }
-            int home = hashToPE(sid);
+            int home = sid!=-1?hashToPE(sid): hashToPE(t.idx);
 
             for (int off = 0; off < numPEs; off++) {
                 int pe = (home + off) % numPEs;
-                if (mulUnits[pe]->push(t.a, t.b,sid)) {
-                    mulLoad[pe]++;
-                    issued = true;
-                    break;
+                if (!mulUnits[pe]->isFull()){
+                    if (freeSIDs.empty())
+                        return;
+                    if (sid==-1){
+                        sid=allocSID(t.idx,remaining[t.idx]);
+                        idxToSID[t.idx]=sid;
+                    }
+                    if (mulUnits[pe]->push(t.a, t.b,sid)){
+                        mulLoad[pe]++;
+                        issued = true;
+                        break;
+                    }
                 }
             }
+            mulTaskQueue.pop();
             if (issued){
-                mulTaskQueue.pop();
                 continue;
+            }
+            else{
+                mulTaskQueue.push(t);
             }
         }
         return ;
@@ -176,34 +206,30 @@ namespace gem5 {
         for (size_t it = 0; it < qsz; it++) {
 
             AccTask t = accTaskQueue.front();
-            int pe = -1;
-
-            auto itOwner = sidToAccPE.find(t.sid);
-            if (itOwner != sidToAccPE.end()) {
-                pe = itOwner->second;
-            }
-            else {
-
-                pe = findFreeAccPE(t.sid);
-                if (pe == -1)
-                    return;
-
-                sidToAccPE[t.sid] = pe;
-
-                accUnits[pe]->setParams(
-                    sidPartialSum[t.sid],
-                    sidRemainingAcc[t.sid]
-                );
-            }
-
-            if (!accUnits[pe]->push(t.product, t.sid)) {
-                break;
-            }
-            accBusy[pe] = t.sid;
-
             accTaskQueue.pop();
+
+            bool issued = false;
+
+            int home = hashToPE(t.sid);
+
+            for (int off = 0; off < numPEs; off++) {
+                int pe = (home + off) % numPEs;
+
+                if (accUnits[pe]->push(t.product, t.sid)) {
+                    std::cout << RED
+                        << "[SparTA-AccDriver] Scheduled Acc Task SID: "
+                        << t.sid << " on PE: " << pe << "\n" << RESET;
+                    issued = true;
+                    break;
+                }
+            }
+
+            if (!issued) {
+                accTaskQueue.push(t);
+            }
         }
     }
+
 
 
 
@@ -242,32 +268,29 @@ namespace gem5 {
     }
 
 
-
-
     void AcceleratorDriver::
-    onAccReady(int pe, float sum, int remaining,int sid)
+    onAccReady(int pe, float sum,int sid)
     {
         sidRemainingAcc[sid]--;
-
+        sidPartialSum[sid] += sum;
+        std::cout << RED
+            << "[SparTA-AccDriver] Acc Task SID: "
+            << sid << " completed on PE: " << pe
+            << " -- Partial Sum: " << sum
+            << " -- Remaining Ops: " << sidRemainingAcc[sid]
+            << "\n" << RESET;
         if (sidRemainingAcc[sid] == 0) {
 
             int idx = sidToIdx[sid];
             int i = idx / currentCols;
             int j = idx % currentCols;
 
-            currentOut[i][j] = sum;
+            currentOut[i][j] = sidPartialSum[sid];
 
-            if (sidRemainingAcc[sid]==0&&sidRemainingMul[sid]==0){
-                completedTasks++;
+            completedTasks++;
 
-
-
-                freeSID(sid);
-                idxToSID.erase(idx);
-            }
-
-            accBusy[pe] = -1;
-            sidToAccPE.erase(sid);
+            freeSID(sid);
+            idxToSID.erase(idx);
 
             if (completedTasks == totalTasks) {
                 if (phase == PHASE_QK)
@@ -276,11 +299,7 @@ namespace gem5 {
                     onAVDone();
             }
 
-        } else {
-            sidPartialSum[sid] = sum;
-            accBusy[pe] = sid;
         }
-
         if ((completedTasks & 0x3F) == 0) {
             reseed();
         }
@@ -309,6 +328,9 @@ namespace gem5 {
             for (int j = 0; j < N; j++)
                 Prob[i][j] = softmaxRow[j] / s;
         }
+        numReads  += M * N;
+        numWrites += M * N;
+
     }
 
     void AcceleratorDriver::startAV()
@@ -317,6 +339,10 @@ namespace gem5 {
         std::cout << RED<< "[SparTA-Accl] Starting A*V\n"<< RESET;
         currentOut=Output;
         currentCols=Kdim;
+        numReads  += M * N;
+        numReads  += N * Kdim;
+        numWrites += M * Kdim;
+
         dispatchMatMul(Prob, V, Output, M, Kdim, N);
     }
 
@@ -330,6 +356,8 @@ namespace gem5 {
 
     void AcceleratorDriver::regStats()
     {
+        using namespace statistics;
+        SimObject::regStats();
         numReads
             .name(name() + ".numReads")
             .desc("Number of reads performed by the accelerator driver");
@@ -339,14 +367,6 @@ namespace gem5 {
         stallCycles
             .name(name() + ".stallCycles")
             .desc("Number of cycles the accelerator driver was stalled");
-        for (size_t i=0;i<mulUnits.size();i++){
-            if (mulUnits[i])
-                mulUnits[i]->regStats();
-        }
-        for (size_t i=0;i<accUnits.size();i++){
-            if (accUnits[i])
-                accUnits[i]->regStats();
-        }
     }
 
     int AcceleratorDriver::allocSID(int idx,int nnz){
@@ -365,5 +385,7 @@ namespace gem5 {
 
     void AcceleratorDriver::freeSID(int sid){
         freeSIDs.push(sid);
+        tryScheduleMul();
+        tryScheduleAcc();
     }
 }
