@@ -41,3 +41,4 @@ typings
 stats
 configs/sparta/inputs
 stats_sweep
+.env
