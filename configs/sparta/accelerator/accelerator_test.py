@@ -2,6 +2,7 @@ import argparse
 import ctypes
 import math
 import mmap
+import os
 import random
 
 import numpy as np
@@ -126,11 +127,38 @@ Scores_m, Scores_base, Scores_mm = alloc_shared_matrix(seq_len, seq_len)
 Prob_m, Prob_base, Prob_mm = alloc_shared_matrix(seq_len, seq_len)
 Output_m, Output_base, Output_mm = alloc_shared_matrix(seq_len, d_model)
 
-root = Root(full_system=False)
-system = System(
-    clk_domain=SrcClockDomain(clock="1GHz", voltage_domain=VoltageDomain())
-)
-root.system = system
+system = System()
+
+system.clk_domain = SrcClockDomain()
+system.clk_domain.clock = "1GHz"
+system.clk_domain.voltage_domain = VoltageDomain()
+
+system.mem_mode = "timing"
+system.mem_ranges = [AddrRange("512MiB")]
+
+system.cpu = TimingSimpleCPU()
+
+system.membus = SystemXBar()
+
+system.cpu.icache_port = system.membus.cpu_side_ports
+system.cpu.dcache_port = system.membus.cpu_side_ports
+
+system.cpu.createInterruptController()
+
+system.mem_ctrl = MemCtrl()
+system.mem_ctrl.dram = DDR3_1600_8x8()
+system.mem_ctrl.dram.range = system.mem_ranges[0]
+system.mem_ctrl.port = system.membus.mem_side_ports
+
+system.system_port = system.membus.cpu_side_ports
+
+binary = os.environ["binary"]
+system.workload = SEWorkload.init_compatible(binary)
+
+process = Process()
+process.cmd = [binary]
+system.cpu.workload = process
+system.cpu.createThreads()
 
 mul_list = [
     PE_Mul(latency=mul_latency, island=i, queue_size=mul_queue_size)
@@ -157,6 +185,8 @@ system.drv = AcceleratorDriver(
     N=seq_len,
     Kdim=d_model,
 )
+
+root = Root(full_system=False, system=system)
 
 m5.instantiate()
 

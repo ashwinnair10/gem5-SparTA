@@ -216,9 +216,9 @@ namespace gem5 {
                 int pe = (home + off) % numPEs;
 
                 if (accUnits[pe]->push(t.product, t.sid)) {
-                    std::cout << RED
-                        << "[SparTA-AccDriver] Scheduled Acc Task SID: "
-                        << t.sid << " on PE: " << pe << "\n" << RESET;
+                    // std::cout << RED
+                    //     << "[SparTA-AccDriver] Scheduled Acc Task SID: "
+                    //     << t.sid << " on PE: " << pe << "\n" << RESET;
                     issued = true;
                     break;
                 }
@@ -273,12 +273,12 @@ namespace gem5 {
     {
         sidRemainingAcc[sid]--;
         sidPartialSum[sid] += sum;
-        std::cout << RED
-            << "[SparTA-AccDriver] Acc Task SID: "
-            << sid << " completed on PE: " << pe
-            << " -- Partial Sum: " << sum
-            << " -- Remaining Ops: " << sidRemainingAcc[sid]
-            << "\n" << RESET;
+        // std::cout << RED
+        //     << "[SparTA-AccDriver] Acc Task SID: "
+        //     << sid << " completed on PE: " << pe
+        //     << " -- Partial Sum: " << sum
+        //     << " -- Remaining Ops: " << sidRemainingAcc[sid]
+        //     << "\n" << RESET;
         if (sidRemainingAcc[sid] == 0) {
 
             int idx = sidToIdx[sid];
