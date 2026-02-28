@@ -13,6 +13,12 @@ class BaselineDriverSequential : public SimObject
 {
   private:
     MatMul *mm;
+    float **X;
+    float **WQ;
+    float **WK;
+    float **WV;
+
+    int projPart;   // 0=Q,1=K,2=V
 
     float **Q, **K, **V;
     float **Scores;
@@ -27,6 +33,7 @@ class BaselineDriverSequential : public SimObject
     enum Phase
     {
         PHASE_IDLE,
+        PHASE_PROJ,
         PHASE_QK,
         PHASE_SOFTMAX,
         PHASE_AV,
@@ -49,6 +56,10 @@ class BaselineDriverSequential : public SimObject
     void start();
 
     void tick();
+
+    void startProjection();
+
+    void onProjectionDone();
 
     void onQKDone();
     void onAVDone();

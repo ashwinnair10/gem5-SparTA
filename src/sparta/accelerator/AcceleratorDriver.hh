@@ -19,6 +19,10 @@ namespace gem5{
         std::vector<PE_Mul*> mulUnits;
         std::vector<PE_Acc*> accUnits;
 
+        float **X, **WQ, **WK, **WV;
+
+        int projPart;
+
         float **Q, **K, **V;
         float **Scores, **Prob, **Output;
 
@@ -28,12 +32,15 @@ namespace gem5{
 
         int numPEs;
 
+
+
         EventFunctionWrapper startEvent;
         EventFunctionWrapper tickEvent;
 
         enum Phase
         {
             PHASE_IDLE,
+            PHASE_PROJ,
             PHASE_QK,
             PHASE_SOFTMAX,
             PHASE_AV,
@@ -80,9 +87,13 @@ namespace gem5{
         void startup() override;
 
         void start();
+        void startProjection();
+        void onProjectionDone();
         void startAV();
         void
-        dispatchMatMul(float **A, float **B, float **C, int M, int N, int K);
+        dispatchMatMul(float **A, float **B,
+            float **C, int M, int N,
+            int K,bool transpose=false);
 
         void tryScheduleMul();
         void tryScheduleAcc();

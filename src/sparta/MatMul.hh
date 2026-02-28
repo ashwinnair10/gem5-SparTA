@@ -20,6 +20,7 @@ namespace gem5{
       int M, N, K;
       int i, j, k;
       bool done=false;
+      bool transpose;
       std::function<void()> finishedCallback;
       std::queue<std::tuple<float,float,int>> stallMulQueue;
       std::queue<std::pair<float,int>> stallAccQueue;
@@ -42,7 +43,7 @@ namespace gem5{
       void startMatMul(uint64_t A_ptr,
                          uint64_t B_ptr,
                          uint64_t C_ptr,
-                         int _M, int _N, int _K);
+                         int _M, int _N, int _K,bool t);
 
       void onMulDone(float product,int idx);
 

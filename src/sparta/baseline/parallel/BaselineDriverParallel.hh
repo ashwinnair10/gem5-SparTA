@@ -16,6 +16,14 @@ namespace gem5{
         std::vector<PE_Mul*> mulUnits;
         std::vector<PE_Acc*> accUnits;
 
+        float **X;
+        float **WQ;
+        float **WK;
+        float **WV;
+
+        int projPart;
+
+
         float **Q, **K, **V;
         float **Scores, **Prob, **Output;
         float **currentOut;
@@ -41,6 +49,7 @@ namespace gem5{
         enum Phase
         {
             PHASE_IDLE,
+            PHASE_PROJ,
             PHASE_QK,
             PHASE_SOFTMAX,
             PHASE_AV,
@@ -52,9 +61,13 @@ namespace gem5{
         void startup() override;
 
         void start();
+        void startProjection();
+        void onProjectionDone();
         void startAV();
         void
-        dispatchMatMul(float **A, float **B, float **C, int M, int N, int K);
+        dispatchMatMul(float **A, float **B,
+            float **C, int M, int N,
+            int K,bool transpose=false);
 
         void onProductReady(int pe, float product,int idx);
         void onAccReady(int pe, float sum,int idx);

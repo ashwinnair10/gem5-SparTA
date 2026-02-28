@@ -13,7 +13,9 @@ namespace gem5{
                     "sparta_matmul_retry_event"),
         tickEvent([this]{tick(); },
                   "sparta_matmul_tick_event")
-        {}
+        {
+            transpose=false;
+        }
 
     void MatMul::tick(){
         bool hasPending =
@@ -31,14 +33,16 @@ namespace gem5{
     void MatMul::startMatMul(uint64_t A_ptr,
                          uint64_t B_ptr,
                          uint64_t C_ptr,
-                         int _M, int _N, int _K)
+                         int _M, int _N, int _K,bool t)
     {
+
         A = reinterpret_cast<float **>(A_ptr);
         B = reinterpret_cast<float **>(B_ptr);
         C = reinterpret_cast<float **>(C_ptr);
         M = _M;
         N = _N;
         K = _K;
+        transpose = t;
 
         partialSums.assign(M * N, 0.0f);
         remainingCounts.assign(M * N, K);
@@ -52,8 +56,8 @@ namespace gem5{
         });
         done=false;
         i = j = k = 0;
-        if (!mul->push(A[i][k], B[k][j],i*N+j)){
-            stallMulQueue.push({A[i][k], B[k][j],i*N+j});
+        if (!mul->push(A[i][k],transpose ? B[j][k] : B[k][j],i*N+j)){
+            stallMulQueue.push({A[i][k], transpose ? B[j][k] : B[k][j],i*N+j});
             if (!retryEvent.scheduled())
                 schedule(retryEvent, curTick() + 1);
         }
@@ -69,12 +73,16 @@ namespace gem5{
     }
 
     void MatMul::onAccDone(float partial,int idx){
+
         partialSums[idx] += partial;
         remainingCounts[idx]--;
         if (remainingCounts[idx]>0){
             k++;
-            if (!mul->push(A[i][k], B[k][j],i*N+j)){
-                stallMulQueue.push({A[i][k], B[k][j],i*N+j});
+
+            if (!mul->push(A[i][k],transpose
+                ? B[j][k] : B[k][j],i*N+j)){
+                stallMulQueue.push({A[i][k],
+                     transpose ? B[j][k] : B[k][j],i*N+j});
                 if (!retryEvent.scheduled())
                     schedule(retryEvent, curTick() + 1);
             }
@@ -84,8 +92,11 @@ namespace gem5{
         j++;
         if (j<N){
             k=0;
-            if (!mul->push(A[i][k], B[k][j],i*N+j)){
-                stallMulQueue.push({A[i][k], B[k][j],i*N+j});
+
+            if (!mul->push(A[i][k],transpose
+                ? B[j][k] : B[k][j],i*N+j)){
+                stallMulQueue.push({A[i][k],
+                    transpose ? B[j][k] : B[k][j],i*N+j});
                 if (!retryEvent.scheduled())
                     schedule(retryEvent, curTick() + 1);
             }
@@ -95,8 +106,11 @@ namespace gem5{
         if (i<M){
             j=0;
             k=0;
-            if (!mul->push(A[i][k], B[k][j],i*N+j)){
-                stallMulQueue.push({A[i][k], B[k][j],i*N+j});
+
+            if (!mul->push(A[i][k],transpose
+                ? B[j][k] : B[k][j],i*N+j)){
+                stallMulQueue.push({A[i][k],
+                    transpose ? B[j][k] : B[k][j],i*N+j});
                 if (!retryEvent.scheduled())
                     schedule(retryEvent, curTick() + 1);
             }

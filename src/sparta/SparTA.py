@@ -37,6 +37,11 @@ class BaselineDriverSequential(SimObject):
 
     mm = Param.MatMul("MatMul unit")
 
+    X = Param.Addr("Pointer to input matrix X")
+    WQ = Param.Addr("Pointer to weight matrix WQ")
+    WK = Param.Addr("Pointer to weight matrix WK")
+    WV = Param.Addr("Pointer to weight matrix WV")
+
     Q = Param.Addr("Pointer to Q matrix")
     K = Param.Addr("Pointer to K^T matrix")
     V = Param.Addr("Pointer to V matrix")
@@ -57,6 +62,11 @@ class BaselineDriverParallel(SimObject):
     numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
     mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
     acc_units = VectorParam.PE_Acc([], "List of PE_Acc units")
+
+    X = Param.Addr("Pointer to input matrix X")
+    WQ = Param.Addr("Pointer to weight matrix WQ")
+    WK = Param.Addr("Pointer to weight matrix WK")
+    WV = Param.Addr("Pointer to weight matrix WV")
     Q = Param.Addr("Pointer to Q")
     K = Param.Addr("Pointer to K")
     V = Param.Addr("Pointer to V")
@@ -78,6 +88,96 @@ class AcceleratorDriver(SimObject):
     acc_units = VectorParam.PE_Acc([], "List of PE_Acc units")
     mul_queue_depth = Param.Int("Depth of PE_Mul queue")
     acc_queue_depth = Param.Int("Depth of PE_Acc queue")
+
+    X = Param.Addr("Pointer to input matrix X")
+    WQ = Param.Addr("Pointer to weight matrix WQ")
+    WK = Param.Addr("Pointer to weight matrix WK")
+    WV = Param.Addr("Pointer to weight matrix WV")
+    Q = Param.Addr("Pointer to Q")
+    K = Param.Addr("Pointer to K")
+    V = Param.Addr("Pointer to V")
+    Scores = Param.Addr("Pointer to Scores")
+    Prob = Param.Addr("Pointer to Probabilities")
+    Output = Param.Addr("Pointer to Final Output")
+    M = Param.Int("Seq length")
+    N = Param.Int("Seq length again")
+    Kdim = Param.Int("Head dim")
+
+
+class AcceleratorDriverSPADA(SimObject):
+    type = "AcceleratorDriverSPADA"
+    cxx_class = "gem5::AcceleratorDriverSPADA"
+    cxx_header = "sparta/baseline/spada/AcceleratorDriverSPADA.hh"
+
+    # Dimensions
+    M = Param.Int("Number of query rows")
+    N = Param.Int("Number of key rows")
+    Kdim = Param.Int("Embedding dimension")
+
+    numPEs = Param.Int("Number of PEs")
+
+    # Tensor pointers (passed from config)
+    Q = Param.Addr("Pointer to Q matrix")
+    K = Param.Addr("Pointer to K matrix")
+    V = Param.Addr("Pointer to V matrix")
+
+    Scores = Param.Addr("Pointer to Scores matrix")
+    Prob = Param.Addr("Pointer to Softmax Prob matrix")
+    Output = Param.Addr("Pointer to Output matrix")
+
+    # PE units
+    mul_units = VectorParam.PE_Mul([], "Multiply PEs")
+    acc_units = VectorParam.PE_Acc([], "Accumulate PEs")
+
+    # Queue depths (needed for maxLiveOps)
+    mul_queue_depth = Param.Int(4, "Mul PE queue depth")
+    acc_queue_depth = Param.Int(4, "Acc PE queue depth")
+
+
+class BlockSPADADriver(SimObject):
+    type = "BlockSPADADriver"
+    cxx_header = "sparta/baseline/block-spada/BlockSPADADriver.hh"
+    cxx_class = "gem5::BlockSPADADriver"
+
+    # Dimensions
+    M = Param.Int("Number of rows (queries)")
+    N = Param.Int("Number of columns (keys)")
+    Kdim = Param.Int("Embedding dimension")
+
+    numPEs = Param.Int("Number of PEs")
+
+    # Memory pointers
+    Q = Param.Addr("Pointer to Q matrix")
+    K = Param.Addr("Pointer to K matrix")
+    V = Param.Addr("Pointer to V matrix")
+    Scores = Param.Addr("Pointer to attention scores")
+    Prob = Param.Addr("Pointer to softmax output")
+    Output = Param.Addr("Pointer to final output")
+
+    # Reuse existing PEs
+    mul_units = VectorParam.PE_Mul([], "Multiply PEs")
+    acc_units = VectorParam.PE_Acc([], "Accumulator PEs")
+
+    # Queue depths (used only for sizing internal structures)
+    mul_queue_depth = Param.Int(4, "Mul queue depth")
+    acc_queue_depth = Param.Int(4, "Acc queue depth")
+
+
+class GammaDriver(SimObject):
+    type = "GammaDriver"
+    cxx_header = "sparta/baseline/gamma/GammaDriver.hh"
+    cxx_class = "gem5::GammaDriver"
+
+    numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
+    mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
+    acc_units = VectorParam.PE_Acc([], "List of PE_Acc units")
+    mul_queue_depth = Param.Int(4, "Depth of PE_Mul queue")
+    acc_queue_depth = Param.Int(4, "Depth of PE_Acc queue")
+
+    X = Param.Addr("Pointer to input matrix X")
+    WQ = Param.Addr("Pointer to weight matrix WQ")
+    WK = Param.Addr("Pointer to weight matrix WK")
+    WV = Param.Addr("Pointer to weight matrix WV")
     Q = Param.Addr("Pointer to Q")
     K = Param.Addr("Pointer to K")
     V = Param.Addr("Pointer to V")

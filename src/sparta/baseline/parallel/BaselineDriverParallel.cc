@@ -12,6 +12,11 @@ namespace gem5 {
     BaselineDriverParallel::
     BaselineDriverParallel(const BaselineDriverParallelParams &p)
         : SimObject(p),
+        X(reinterpret_cast<float **>(p.X)),
+        WQ(reinterpret_cast<float **>(p.WQ)),
+        WK(reinterpret_cast<float **>(p.WK)),
+        WV(reinterpret_cast<float **>(p.WV)),
+        projPart(0),
         Q(reinterpret_cast<float **>(p.Q)),
         K(reinterpret_cast<float **>(p.K)),
         V(reinterpret_cast<float **>(p.V)),
@@ -69,20 +74,75 @@ namespace gem5 {
 
     void BaselineDriverParallel::start()
     {
-        std::cout << "[SparTA-BASE] Starting Q*K^T PARALLEL\n";
+        // std::cout << "[SparTA-BASE] Starting Q*K^T PARALLEL\n";
+        // phase = PHASE_QK;
+        // currentOut=Scores;
+        // currentCols=N;
+        // numReads  += M * Kdim;
+        // numReads  += N * Kdim;
+        // numWrites += M * N;
+
+        // dispatchMatMul(Q, K, Scores, M, N, Kdim);
+        std::cout << "[BASE] Starting projection (parallel)\n";
+        phase = PHASE_PROJ;
+        startProjection();
+
+    }
+
+    void BaselineDriverParallel::startProjection()
+    {
+        float **out;
+        float **weight;
+
+        if (projPart == 0) {
+            out = Q;
+            weight = WQ;
+        } else if (projPart == 1) {
+            out = K;
+            weight = WK;
+        } else {
+            out = V;
+            weight = WV;
+        }
+
+        currentOut = out;
+        currentCols = Kdim;
+        numReads  += M * Kdim;        // X
+        numReads  += Kdim * Kdim;     // W*
+        numWrites += M * Kdim;        // Q/K/V
+
+
+        dispatchMatMul(X, weight, out, M, Kdim, Kdim);
+    }
+
+    void BaselineDriverParallel::onProjectionDone()
+    {
+        projPart++;
+        std::cout << "[BASE] Projection part " << projPart << " done.\n";
+
+        if (projPart < 3) {
+            startProjection();
+            return;
+        }
+
+        std::cout << "[BASE] Projection done. Starting QK\n";
+
         phase = PHASE_QK;
-        currentOut=Scores;
-        currentCols=N;
+        currentOut = Scores;
+        currentCols = N;
+
         numReads  += M * Kdim;
         numReads  += N * Kdim;
         numWrites += M * N;
+        dispatchMatMul(Q, K, Scores, M, N, Kdim, true);
 
-        dispatchMatMul(Q, K, Scores, M, N, Kdim);
     }
+
+
 
     void
     BaselineDriverParallel::dispatchMatMul(float **A, float **B, float **C,
-                                        int M, int N, int K)
+                                        int M, int N, int K, bool transpose)
     {
         partialSums.assign(M * N, 0.0f);
         remainingCounts.assign(M * N, K);
@@ -94,7 +154,7 @@ namespace gem5 {
                 for (int k = 0; k < K; k++) {
                     int mul_id = (i*N+j) % numPEs;
                     float a = A[i][k];
-                    float b = B[k][j];
+                    float b = transpose ? B[j][k] : B[k][j];
                     if (!mulUnits[mul_id]->push(a, b,i*N+j)){
                         stallMulQueue.push(std::make_tuple(a,b,i*N+j));
                         if (!retryEvent.scheduled())
@@ -124,7 +184,9 @@ namespace gem5 {
             currentOut[idx/currentCols][idx%currentCols]=partialSums[idx];
             completedTasks++;
             if (completedTasks == totalTasks) {
-                if (phase == PHASE_QK) {
+                if (phase == PHASE_PROJ)
+                    onProjectionDone();
+                else if (phase == PHASE_QK) {
                     onQKDone();
                 }
                 else if (phase == PHASE_AV) {

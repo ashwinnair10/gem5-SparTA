@@ -11,6 +11,11 @@ namespace gem5 {
     BaselineDriverSequential(const BaselineDriverSequentialParams &p)
         : SimObject(p),
         mm(p.mm),
+        X(reinterpret_cast<float **>(p.X)),
+        WQ(reinterpret_cast<float **>(p.WQ)),
+        WK(reinterpret_cast<float **>(p.WK)),
+        WV(reinterpret_cast<float **>(p.WV)),
+        projPart(0),
         Q(reinterpret_cast<float **>(p.Q)),
         K(reinterpret_cast<float **>(p.K)),
         V(reinterpret_cast<float **>(p.V)),
@@ -39,7 +44,9 @@ namespace gem5 {
     {
         std::cout << "[SparTA-BASE] startup\n";
         mm->setFinishedCallback([this](){
-            if (phase == PHASE_QK)
+            if (phase == PHASE_PROJ)
+                onProjectionDone();
+            else if (phase == PHASE_QK)
                 onQKDone();
             else if (phase == PHASE_AV)
                 onAVDone();
@@ -50,18 +57,72 @@ namespace gem5 {
 
     void BaselineDriverSequential::start()
     {
+        phase = PHASE_PROJ;
+        std::cout << "[SparTA-BASE] Starting projection\n";
+        startProjection();
+    }
+
+    void BaselineDriverSequential::startProjection()
+    {
+
+        float **out;
+        float **weight;
+
+        if (projPart == 0){
+            out = Q;
+            weight=WQ;
+        }
+        else if (projPart == 1){
+            out = K;
+            weight = WK;
+        }
+        else{
+            out = V;
+            weight = WV;
+        }
+
+        mm->startMatMul(
+            (uint64_t)X,
+            (uint64_t)weight,
+            (uint64_t)out,
+            M,
+            Kdim,
+            Kdim,
+            false
+        );
+        numReads  += M * Kdim;
+        numReads  += Kdim * Kdim;
+        numWrites += M * Kdim;
+
+    }
+
+    void BaselineDriverSequential::onProjectionDone()
+    {
+        projPart++;
+
+        if (projPart < 3) {
+            startProjection();
+            return;
+        }
+
+        std::cout << "[BASE] Projection done. Starting QK.\n";
         phase = PHASE_QK;
-        std::cout << "[SparTA-BASE] Starting Q*K^T\n";
+
         mm->startMatMul(
             (uint64_t)Q,
             (uint64_t)K,
             (uint64_t)Scores,
-            M, N, Kdim
+            M,
+            N,
+            Kdim,
+            true
         );
         numReads  += M * Kdim;
         numReads  += N * Kdim;
         numWrites += M * N;
     }
+
+
 
     void BaselineDriverSequential::onQKDone()
     {
@@ -98,7 +159,7 @@ namespace gem5 {
             (uint64_t)Prob,
             (uint64_t)V,
             (uint64_t)Output,
-            M, Kdim, N
+            M, Kdim, N,false
         );
         numReads  += M * N;
         numReads  += N * Kdim;

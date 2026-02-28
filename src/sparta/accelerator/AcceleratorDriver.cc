@@ -12,6 +12,11 @@ namespace gem5 {
     AcceleratorDriver::
     AcceleratorDriver(const AcceleratorDriverParams &p)
         : SimObject(p),
+        X(reinterpret_cast<float **>(p.X)),
+        WQ(reinterpret_cast<float **>(p.WQ)),
+        WK(reinterpret_cast<float **>(p.WK)),
+        WV(reinterpret_cast<float **>(p.WV)),
+        projPart(0),
         Q(reinterpret_cast<float **>(p.Q)),
         K(reinterpret_cast<float **>(p.K)),
         V(reinterpret_cast<float **>(p.V)),
@@ -49,8 +54,6 @@ namespace gem5 {
 
     void AcceleratorDriver::tick()
     {
-        std::cout
-            << "[SparTA-AccDriver] Tick : " << curTick() << "\n";
         if (phase == PHASE_DONE)
             return;
 
@@ -91,20 +94,69 @@ namespace gem5 {
 
     void AcceleratorDriver::start()
     {
-        std::cout << RED<< "[SparTA-Accl] Starting Q*K^T \n"<< RESET;
-        phase = PHASE_QK;
-        currentOut=Scores;
-        currentCols=N;
-        numReads  += M * Kdim;
-        numReads  += N * Kdim;
-        numWrites += M * N;
+        // std::cout << RED<< "[SparTA-Accl] Starting Q*K^T \n"<< RESET;
+        // phase = PHASE_QK;
+        // currentOut=Scores;
+        // currentCols=N;
+        // numReads  += M * Kdim;
+        // numReads  += N * Kdim;
+        // numWrites += M * N;
 
-        dispatchMatMul(Q, K, Scores, M, N, Kdim);
+        // dispatchMatMul(Q, K, Scores, M, N, Kdim);
+            std::cout << RED<< "[SparTA-Accl] Starting Projection \n"<< RESET;
+            phase = PHASE_PROJ;
+            startProjection();
+    }
+
+    void AcceleratorDriver::startProjection()
+    {
+        float **out;
+        float **weight;
+
+        if (projPart == 0) {
+            out = Q;
+            weight = WQ;
+        } else if (projPart == 1) {
+            out = K;
+            weight = WK;
+        } else {
+            out = V;
+            weight = WV;
+        }
+
+        currentOut = out;
+        currentCols = Kdim;
+        numReads  += M * Kdim;        // X
+        numReads  += Kdim * Kdim;     // W*
+        numWrites += M * Kdim;        // Q/K/V
+
+
+        dispatchMatMul(X, weight, out, M, Kdim, Kdim);
+    }
+
+    void AcceleratorDriver::onProjectionDone()
+    {
+        projPart++;
+        if (projPart < 3) {
+            startProjection();
+        } else {
+            std::cout << RED<<
+            "[SparTA-Accl] Projection Done. Starting Q*K^T \n"
+            << RESET;
+            phase = PHASE_QK;
+            currentOut=Scores;
+            currentCols=N;
+            numReads  += M * Kdim;        // Q
+            numReads  += N * Kdim;        // K
+            numWrites += M * N;           // Scores
+
+            dispatchMatMul(Q, K, Scores, M, N, Kdim,true);
+        }
     }
 
     void
     AcceleratorDriver::dispatchMatMul(float **A, float **B, float **C,
-                                        int M, int N, int K)
+                                        int M, int N, int K,bool transpose)
     {
         remaining.clear();
         remaining.resize(M*N);
@@ -123,9 +175,11 @@ namespace gem5 {
                 nz = 0;
 
                 for (int k = 0; k < K; k++) {
-                    if (A[i][k] != 0 && B[k][j] != 0){
+                    float op1=A[i][k];
+                    float op2=transpose?B[j][k]:B[k][j];
+                    if (op1 != 0 && op2 != 0){
                         nz++;
-                        mulTaskQueue.push({A[i][k], B[k][j], idx});
+                        mulTaskQueue.push({op1, op2, idx});
                     }
                 }
 
@@ -187,6 +241,10 @@ namespace gem5 {
 
     void AcceleratorDriver::onProductReady(int pe, float product,int sid)
     {
+        // std::cout << RED << "Phase:" << phase <<" "
+        //     << "[SparTA-AccDriver] Product ready from PE " << pe
+        //     << ": " << product << " for SID " << sid
+        //     << "\n" << RESET;
         mulLoad[pe]--;
         sidRemainingMul[sid]--;
         accTaskQueue.push({product,sid});
@@ -293,7 +351,9 @@ namespace gem5 {
             idxToSID.erase(idx);
 
             if (completedTasks == totalTasks) {
-                if (phase == PHASE_QK)
+                 if (phase == PHASE_PROJ)
+                    onProjectionDone();
+                else if (phase == PHASE_QK)
                     onQKDone();
                 else if (phase == PHASE_AV)
                     onAVDone();
