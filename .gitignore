@@ -42,3 +42,5 @@ stats
 configs/sparta/inputs
 stats_sweep
 .env
+sparta_env
+*.npy

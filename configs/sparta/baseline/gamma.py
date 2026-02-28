@@ -12,7 +12,7 @@ sys.path.insert(0, PROJECT_ROOT)
 from configs.sparta.common.attention_setup import attention
 from configs.sparta.common.input_loader import load_X_W
 from configs.sparta.common.pe_factory import make_pes
-from configs.sparta.drivers.sparta import attach_driver
+from configs.sparta.drivers.gamma import attach_driver
 
 import m5
 

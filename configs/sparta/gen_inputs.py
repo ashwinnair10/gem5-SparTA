@@ -89,18 +89,18 @@ np.random.seed(42)
 # ----------------------------
 
 X = np.random.uniform(-1, 1, (args.seqlen, args.dmodel)).astype(np.float32)
-W = np.random.uniform(-1, 1, (3 * args.dmodel, args.dmodel)).astype(np.float32)
+W = np.random.uniform(-1, 1, (args.dmodel, 3 * args.dmodel)).astype(np.float32)
 
 # ----------------------------
 # Apply sparsity
 # ----------------------------
 
 if args.sparsity_mode == "random":
-    X = random_sparsity(X, args.sparsity)
+    # X = random_sparsity(X, args.sparsity)
     W = random_sparsity(W, args.sparsity)
 
 elif args.sparsity_mode == "block":
-    X = block_sparsity(X, args.block_size, args.sparsity)
+    # X = block_sparsity(X, args.block_size, args.sparsity)
     W = block_sparsity(W, args.block_size, args.sparsity)
 
 elif args.sparsity_mode == "local":

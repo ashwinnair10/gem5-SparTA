@@ -1,5 +1,4 @@
 # configs/sparta/baseline/spada.py
-
 import argparse
 import os
 import sys
@@ -9,10 +8,10 @@ PROJECT_ROOT = os.path.abspath(
 )
 sys.path.insert(0, PROJECT_ROOT)
 
-from configs.sparta.common.attention_setup import attention
+from configs.sparta.common.attention_setup import setup_attention
 from configs.sparta.common.input_loader import load_X_W
 from configs.sparta.common.pe_factory import make_pes
-from configs.sparta.drivers.sparta import attach_driver
+from configs.sparta.drivers.spada import attach_driver
 
 import m5
 
@@ -20,7 +19,7 @@ X, W, seqlen, dmodel = load_X_W(
     "configs/sparta/inputs/X.npy", "configs/sparta/inputs/W.npy"
 )
 
-root, *mats = attention(X, W, seqlen, dmodel)
+root, *mats = setup_attention(X, W, seqlen, dmodel)
 
 parser = argparse.ArgumentParser()
 

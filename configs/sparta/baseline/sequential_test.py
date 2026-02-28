@@ -1,199 +1,69 @@
-import argparse
-import ctypes
-import math
-import mmap
-import random
+# configs/sparta/baseline/spada.py
 
-import numpy as np
+import argparse
+import os
+import sys
+
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../..")
+)
+sys.path.insert(0, PROJECT_ROOT)
+
+from configs.sparta.common.attention_setup import attention
+from configs.sparta.common.input_loader import load_X_W
+from configs.sparta.drivers.sequential import attach_driver
 
 import m5
-from m5.objects import *
 
+X, W, seqlen, dmodel = load_X_W(
+    "configs/sparta/inputs/X.npy", "configs/sparta/inputs/W.npy"
+)
 
-def rand_mat(rows, cols):
-    return [[random.uniform(-1, 1) for _ in range(cols)] for _ in range(rows)]
-
-
-def zeros(rows, cols):
-    return [[0.0 for _ in range(cols)] for _ in range(rows)]
-
-
-def matmul(a, b):
-    m = len(a)
-    k = len(a[0])
-    n = len(b[0])
-    out = zeros(m, n)
-    for i in range(m):
-        for j in range(n):
-            s = 0
-            for t in range(k):
-                s += a[i][t] * b[t][j]
-            out[i][j] = s
-    return out
-
-
-def softmax_row(v):
-    mx = max(v)
-    exps = [math.exp(x - mx) for x in v]
-    s = sum(exps)
-    return [x / s for x in exps]
-
-
-def softmax(mat):
-    return [softmax_row(row) for row in mat]
-
-
-def alloc_shared_matrix(rows, cols):
-    total = rows * cols * ctypes.sizeof(ctypes.c_float)
-    mm = mmap.mmap(-1, total)
-    base = ctypes.c_void_p(ctypes.addressof(ctypes.c_char.from_buffer(mm)))
-
-    RowArray = ctypes.POINTER(ctypes.c_float) * rows
-    matrix = RowArray()
-
-    for i in range(rows):
-        row_addr = base.value + i * cols * ctypes.sizeof(ctypes.c_float)
-        matrix[i] = ctypes.cast(row_addr, ctypes.POINTER(ctypes.c_float))
-
-    return matrix, base, mm
-
-
-def list_to_shared(mat):
-    rows = len(mat)
-    cols = len(mat[0])
-    m, base, mm = alloc_shared_matrix(rows, cols)
-    for i in range(rows):
-        for j in range(cols):
-            m[i][j] = float(mat[i][j])
-    return m, base, mm
-
-
-def shared_to_list(m, rows, cols):
-    out = zeros(rows, cols)
-    for i in range(rows):
-        for j in range(cols):
-            out[i][j] = float(m[i][j])
-    return out
-
+root, *mats = attention(X, W, seqlen, dmodel)
 
 parser = argparse.ArgumentParser()
+
+parser.add_argument("--mulQueueSize", type=int, required=True)
+parser.add_argument("--accQueueSize", type=int, required=True)
+parser.add_argument("--mulLatency", type=int, default=4)
+parser.add_argument("--accLatency", type=int, default=2)
+
+# input selection
+parser.add_argument("--X", type=str, help="Path to X.npy")
+parser.add_argument("--W", type=str, help="Path to W.npy")
+parser.add_argument("--use-gen-inputs", action="store_true")
+
+# sparsity (only for gen_inputs)
 parser.add_argument(
-    "-d", "--dmodel", type=int, required=True, help="model dimension"
+    "--sparsity-mode",
+    choices=["none", "random", "block", "local"],
+    default="none",
 )
-parser.add_argument(
-    "-s", "--seqlen", type=int, required=True, help="sequence length"
-)
-parser.add_argument(
-    "--mulQueueSize", type=int, required=True, help="queue size for Mul PEs"
-)
-parser.add_argument(
-    "--accQueueSize", type=int, required=True, help="queue size for Acc PEs"
-)
-parser.add_argument(
-    "--mulLatency", type=int, default=4, help="latency for Mul PEs"
-)
-parser.add_argument(
-    "--accLatency", type=int, default=2, help="latency for Acc PEs"
-)
+parser.add_argument("--sparsity", type=float, default=0.0)
+parser.add_argument("--block-size", type=int, default=16)
+parser.add_argument("--window", type=int, default=32)
+
 args = parser.parse_args()
 
-d_model = args.dmodel
-seq_len = args.seqlen
-mul_queue_size = args.mulQueueSize
-acc_queue_size = args.accQueueSize
-mul_latency = args.mulLatency
-acc_latency = args.accLatency
-
-X = np.load("configs/sparta/inputs/X.npy").tolist()
-W = np.load("configs/sparta/inputs/W.npy").tolist()
-b = [0.0] * (3 * d_model)
-
-QKV = matmul(X, [list(col) for col in zip(*W)])
-Q = [row[0 * d_model : 1 * d_model] for row in QKV]
-K = [row[1 * d_model : 2 * d_model] for row in QKV]
-V = [row[2 * d_model : 3 * d_model] for row in QKV]
-K_T = [list(col) for col in zip(*K)]
-
-Q_m, Q_base, Q_mm = list_to_shared(Q)
-K_m, K_base, K_mm = list_to_shared(K_T)
-V_m, V_base, V_mm = list_to_shared(V)
-
-Scores_m, Scores_base, Scores_mm = alloc_shared_matrix(seq_len, seq_len)
-Prob_m, Prob_base, Prob_mm = alloc_shared_matrix(seq_len, seq_len)
-Output_m, Output_base, Output_mm = alloc_shared_matrix(seq_len, d_model)
-
-system = System()
-
-system.clk_domain = SrcClockDomain()
-system.clk_domain.clock = "1GHz"
-system.clk_domain.voltage_domain = VoltageDomain()
-
-system.mem_mode = "timing"
-system.mem_ranges = [AddrRange("512MiB")]
-
-system.cpu = TimingSimpleCPU()
-
-system.membus = SystemXBar()
-
-system.cpu.icache_port = system.membus.cpu_side_ports
-system.cpu.dcache_port = system.membus.cpu_side_ports
-
-system.cpu.createInterruptController()
-
-system.mem_ctrl = MemCtrl()
-system.mem_ctrl.dram = DDR3_1600_8x8()
-system.mem_ctrl.dram.range = system.mem_ranges[0]
-system.mem_ctrl.port = system.membus.mem_side_ports
-
-system.system_port = system.membus.cpu_side_ports
-
-binary = os.environ["binary"]
-system.workload = SEWorkload.init_compatible(binary)
-
-process = Process()
-process.cmd = [binary]
-system.cpu.workload = process
-system.cpu.createThreads()
-
-
-system.mul = PE_Mul(latency=mul_latency, queue_size=mul_queue_size)
-system.acc = PE_Acc(latency=acc_latency, queue_size=acc_queue_size)
-system.mm = MatMul(mul=system.mul, acc=system.acc)
-
-system.drv = BaselineDriverSequential(
-    mm=system.mm,
-    Q=ctypes.cast(Q_m, ctypes.c_void_p).value,
-    K=ctypes.cast(K_m, ctypes.c_void_p).value,
-    V=ctypes.cast(V_m, ctypes.c_void_p).value,
-    Scores=ctypes.cast(Scores_m, ctypes.c_void_p).value,
-    Prob=ctypes.cast(Prob_m, ctypes.c_void_p).value,
-    Output=ctypes.cast(Output_m, ctypes.c_void_p).value,
-    M=seq_len,
-    N=seq_len,
-    Kdim=d_model,
-)
-
-root = Root(full_system=False, system=system)
+attach_driver(root, args, mats, (seqlen, dmodel))
 
 m5.instantiate()
-
-print("Running baseline attention inside gem5...")
 m5.simulate()
+
+# ---------------- SAVE GEM5 OUTPUT ----------------
+import numpy as np
+
+# mats returned from setup_attention:
+# mats = (Q_m, K_m, V_m, Scores_m, Prob_m, Output_m)
+
+Output_m = mats[-1]  # last matrix is Output
+seq_len, d_model = seqlen, dmodel
+
+from configs.sparta.common.shared_mem import shared_to_list
 
 Output = shared_to_list(Output_m, seq_len, d_model)
 
-Ref1 = matmul(Q, [list(col) for col in zip(*K)])
-RefSoft = softmax(Ref1)
-RefOut = matmul(RefSoft, V)
+outdir = m5.options.outdir
+np.save(os.path.join(outdir, "gem5_output.npy"), np.array(Output))
 
-print("\nGEM5 Output:")
-for r in Output:
-    print([round(i, 4) for i in r])
-
-print("\nReference Output:")
-for r in RefOut:
-    print([round(i, 4) for i in r])
-
-print("\nDifference:")
-for i in range(seq_len):
-    print([round(Output[i][j] - RefOut[i][j], 4) for j in range(d_model)])
+print("[INFO] Saved gem5_output.npy")
