@@ -1,27 +1,43 @@
 # configs/sparta/pipeline/stats.py
+
 import math
+import os
 
 
 def parse_stats(stats_path):
+
+    if not os.path.exists(stats_path):
+        raise RuntimeError(f"stats file missing: {stats_path}")
+
     stats = {}
+
     with open(stats_path) as f:
         for line in f:
+
             parts = line.split()
+
             if len(parts) < 2:
                 continue
+
             try:
-                v = float(parts[1])
-                if not math.isfinite(v):
-                    v = 0.0
-                stats[parts[0]] = v
+                value = float(parts[1])
+
+                if not math.isfinite(value):
+                    value = 0.0
+
+                stats[parts[0]] = value
+
             except ValueError:
-                pass
+                continue
+
     return stats
 
 
 def extract_simticks(stats_path):
-    with open(stats_path) as f:
-        for line in f:
-            if line.startswith("simTicks"):
-                return int(line.split()[1])
-    raise RuntimeError("simTicks not found")
+
+    stats = parse_stats(stats_path)
+
+    if "simTicks" not in stats:
+        raise RuntimeError(f"simTicks not found in {stats_path}")
+
+    return int(stats["simTicks"])

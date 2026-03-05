@@ -16,7 +16,7 @@ layer_index = 0
 # =============================
 # Create output directory
 # =============================
-out_dir = f"data/matrices/sparse_model/{model_name}/layer{layer_index}"
+out_dir = f"configs/sparta/inputs/bert-90-sparse"
 os.makedirs(out_dir, exist_ok=True)
 
 # =============================

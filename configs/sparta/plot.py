@@ -1,67 +1,153 @@
-import argparse
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
-parser = argparse.ArgumentParser()
-parser.add_argument("dir", help="stats/<dmodel>_<seqlen>_<numpes>_<mode>")
-args = parser.parse_args()
+STATS_ROOT = "stats"
+OUT_DIR = "plots"
 
-mode = args.dir.split("_")[-1]  # random / block / local
-xlabel = "Window Size" if mode == "local" else "Sparsity (%)"
+os.makedirs(OUT_DIR, exist_ok=True)
 
 records = []
 
-for fname in sorted(
-    os.listdir(args.dir), key=lambda x: float(x.replace(".csv", ""))
-):
-    if not fname.endswith(".csv"):
+# ------------------------------------------------
+# Load results
+# ------------------------------------------------
+
+for model in sorted(os.listdir(STATS_ROOT)):
+
+    csv_path = os.path.join(STATS_ROOT, model, "results.csv")
+
+    if not os.path.exists(csv_path):
         continue
 
-    xval = float(fname.replace(".csv", ""))
-    xplot = xval if mode == "local" else xval * 100
+    df = pd.read_csv(csv_path)
 
-    df = pd.read_csv(os.path.join(args.dir, fname), index_col=0)
-
-    for design in ["Sequential", "Parallel", "SparTA"]:
+    for _, row in df.iterrows():
         records.append(
             {
-                "X": xplot,
-                "Design": design,
-                "simTicks": df.loc[design, "simTicks"],
-                "Speedup": df.loc[design, "Speedup"],
-                "Energy": df.loc[design, "runtime_dynamic"],
-                "EDP": df.loc[design, "EDP"],
-                "EDPNorm": df.loc[design, "EDPNorm_vs_SparTA"],
+                "model": model,
+                "arch": row["Architecture"],
+                "ticks": row["simTicks"],
             }
         )
 
 data = pd.DataFrame(records)
 
+if data.empty:
+    raise RuntimeError("No experiment results found")
 
-# -------- helper --------
-def plot(metric, ylabel, fname):
-    plt.figure()
-    for d in ["Sequential", "Parallel", "SparTA"]:
-        sub = data[data.Design == d]
-        plt.plot(sub.X, sub[metric], marker="o", label=d)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.grid(True)
-    plt.legend()
-    plt.savefig(fname, dpi=300)
+# ------------------------------------------------
+# Pivot table
+# ------------------------------------------------
+
+pivot = data.pivot(index="model", columns="arch", values="ticks")
+
+# ------------------------------------------------
+# 1. Runtime bar chart
+# ------------------------------------------------
+
+pivot.plot(kind="bar", figsize=(10, 6))
+
+plt.ylabel("simTicks")
+plt.title("Runtime Comparison")
+plt.xticks(rotation=45)
+plt.tight_layout()
+
+plt.savefig(f"{OUT_DIR}/runtime_bar.png")
+print("Saved runtime_bar.png")
+
+plt.close()
+
+# ------------------------------------------------
+# 2. Speedup vs Sequential
+# ------------------------------------------------
+
+if "Sequential" in pivot.columns:
+
+    speedup = pivot.copy()
+
+    for arch in pivot.columns:
+        speedup[arch] = pivot["Sequential"] / pivot[arch]
+
+    speedup.drop(columns=["Sequential"], inplace=True)
+
+    speedup.plot(kind="bar", figsize=(10, 6))
+
+    plt.ylabel("Speedup vs Sequential")
+    plt.title("Architecture Speedup")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    plt.savefig(f"{OUT_DIR}/speedup_bar.png")
+    print("Saved speedup_bar.png")
+
     plt.close()
 
+# ------------------------------------------------
+# 3. Normalized runtime
+# ------------------------------------------------
 
-# -------- plots --------
-plot("Speedup", "Speedup (vs Sequential)", "speedup.png")
-plot("simTicks", "Simulation Ticks", "time.png")
-plot("Energy", "Runtime Dynamic Energy (McPAT)", "energy.png")
-plot("EDPNorm", "EDP (Normalized to SparTA)", "edp.png")
+norm = pivot.div(pivot["Sequential"], axis=0)
 
-print("Generated:")
-print("  speedup.png")
-print("  time.png")
-print("  energy.png")
-print("  edp.png")
+norm.plot(kind="bar", figsize=(10, 6))
+
+plt.ylabel("Normalized Runtime")
+plt.title("Normalized Runtime (Sequential = 1)")
+plt.xticks(rotation=45)
+plt.tight_layout()
+
+plt.savefig(f"{OUT_DIR}/normalized_runtime.png")
+print("Saved normalized_runtime.png")
+
+plt.close()
+
+# ------------------------------------------------
+# 4. Histogram distribution
+# ------------------------------------------------
+
+plt.figure(figsize=(8, 6))
+
+for arch in data["arch"].unique():
+    subset = data[data["arch"] == arch]
+    plt.hist(subset["ticks"], bins=10, alpha=0.6, label=arch)
+
+plt.xlabel("simTicks")
+plt.ylabel("Frequency")
+plt.title("Tick Distribution")
+plt.legend()
+plt.tight_layout()
+
+plt.savefig(f"{OUT_DIR}/tick_histogram.png")
+print("Saved tick_histogram.png")
+
+plt.close()
+
+# ------------------------------------------------
+# 5. Geometric mean speedup
+# ------------------------------------------------
+
+if "Sequential" in pivot.columns:
+
+    speedup = pivot.copy()
+
+    for arch in pivot.columns:
+        speedup[arch] = pivot["Sequential"] / pivot[arch]
+
+    speedup = speedup.drop(columns=["Sequential"])
+
+    gmean = np.exp(np.log(speedup).mean())
+
+    gmean.plot(kind="bar", figsize=(8, 5))
+
+    plt.ylabel("Geometric Mean Speedup")
+    plt.title("Overall Architecture Speedup")
+    plt.tight_layout()
+
+    plt.savefig(f"{OUT_DIR}/geomean_speedup.png")
+    print("Saved geomean_speedup.png")
+
+    plt.close()
+
+print("\nAll plots saved in:", OUT_DIR)

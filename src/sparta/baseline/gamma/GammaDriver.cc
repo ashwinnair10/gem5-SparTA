@@ -478,11 +478,78 @@ namespace gem5 {
     //     }
     // }
 
-    void GammaDriver::retryStalled()
+//     void GammaDriver::retryStalled()
+// {
+//     bool progress = false;
+
+//     // Retry ACC first
+//     size_t acc_sz = stallAccQueue.size();
+//     for (size_t i = 0; i < acc_sz; i++)
+//     {
+//         auto t = stallAccQueue.front();
+//         stallAccQueue.pop();
+
+//         if (accUnits[t.pe]->push(t.product, t.col))
+//         {
+//             progress = true;
+//         }
+//         else
+//         {
+//             stallAccQueue.push(t);
+//         }
+//     }
+
+//     // Retry MUL
+//     size_t mul_sz = stallMulQueue.size();
+//     for (size_t i = 0; i < mul_sz; i++)
+//     {
+//         auto t = stallMulQueue.front();
+//         stallMulQueue.pop();
+
+//         int pe = t.pe;
+//         int row = t.row;
+
+//         if (rowAssigned[pe] != row)
+//             continue;
+
+//         int a_start = A_csr.row_ptr[row];
+//         int a_idx   = a_start + t.k;
+//         float a = A_csr.values[a_idx];
+//         int k   = A_csr.col_idx[a_idx];
+
+//         int b_start = B_csr.row_ptr[k];
+//         int b_idx   = b_start + t.j;
+//         float b = B_csr.values[b_idx];
+//         int j   = B_csr.col_idx[b_idx];
+
+//         // if (mulUnits[pe]->push(a, b, j))
+//         // {
+//             progress = true;
+//             pe_k[pe] = t.k;
+//             pe_j[pe] = t.j+1;
+//             issueRow(pe, row);
+//         // }
+//         else
+//         {
+//             stallMulQueue.push(t);
+//         }
+//     }
+
+//     if (progress &&
+//         (!stallMulQueue.empty() ||
+//         !stallAccQueue.empty())&& !retryEvent.scheduled())
+//     {
+//         schedule(retryEvent, curTick() + 1);
+//     }
+// }
+
+void GammaDriver::retryStalled()
 {
     bool progress = false;
 
-    // Retry ACC first
+    // ----------------------------
+    // 1️⃣ Retry ACC first
+    // ----------------------------
     size_t acc_sz = stallAccQueue.size();
     for (size_t i = 0; i < acc_sz; i++)
     {
@@ -499,45 +566,43 @@ namespace gem5 {
         }
     }
 
-    // Retry MUL
+    // ----------------------------
+    // 2️⃣ Retry MUL
+    // IMPORTANT:
+    //   Do NOT manually push here.
+    //   Restore state and call issueRow().
+    //   issueRow() is the ONLY place
+    //   allowed to push + increment remainingOps.
+    // ----------------------------
     size_t mul_sz = stallMulQueue.size();
     for (size_t i = 0; i < mul_sz; i++)
     {
         auto t = stallMulQueue.front();
         stallMulQueue.pop();
 
-        int pe = t.pe;
+        int pe  = t.pe;
         int row = t.row;
 
+        // If row changed, discard safely
         if (rowAssigned[pe] != row)
             continue;
 
-        int a_start = A_csr.row_ptr[row];
-        int a_idx   = a_start + t.k;
-        float a = A_csr.values[a_idx];
-        int k   = A_csr.col_idx[a_idx];
+        // Restore pointer exactly where it stalled
+        pe_k[pe] = t.k;
+        pe_j[pe] = t.j;
 
-        int b_start = B_csr.row_ptr[k];
-        int b_idx   = b_start + t.j;
-        float b = B_csr.values[b_idx];
-        int j   = B_csr.col_idx[b_idx];
+        // Re-attempt issuing from that position
+        issueRow(pe, row);
 
-        if (mulUnits[pe]->push(a, b, j))
-        {
-            progress = true;
-            pe_k[pe] = t.k;
-            pe_j[pe] = t.j;
-            issueRow(pe, row);
-        }
-        else
-        {
-            stallMulQueue.push(t);
-        }
+        progress = true;
     }
 
+    // ----------------------------
+    // 3️⃣ Reschedule only if real progress
+    // ----------------------------
     if (progress &&
-        (!stallMulQueue.empty() ||
-        !stallAccQueue.empty())&& !retryEvent.scheduled())
+        (!stallMulQueue.empty() || !stallAccQueue.empty()) &&
+        !retryEvent.scheduled())
     {
         schedule(retryEvent, curTick() + 1);
     }

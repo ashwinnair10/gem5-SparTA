@@ -29,5 +29,5 @@ W_V = layer.value.weight
 W = torch.cat([W_Q, W_K, W_V], dim=1)  # [d_model, 3*d_model]
 
 
-np.save("data/matrices/bert/X.npy", X.detach().cpu().numpy())
-np.save("data/matrices/bert/W.npy", W.detach().cpu().numpy())
+np.save("configs/sparta/inputs/bert/X.npy", X.detach().cpu().numpy())
+np.save("configs/sparta/inputs/bert/W.npy", W.detach().cpu().numpy())

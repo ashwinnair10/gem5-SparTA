@@ -1,11 +1,13 @@
 # configs/sparta/pipeline/gem5_runner.py
+
 import os
 import subprocess
 
-GEM5 = "build/ARM/gem5.opt"
+GEM5 = os.environ.get("GEM5_BIN", "build/ARM/gem5.opt")
 
 
 def run_test(name, script, outdir, args):
+
     os.makedirs(outdir, exist_ok=True)
 
     cmd = [
@@ -21,15 +23,21 @@ def run_test(name, script, outdir, args):
         "--accLatency",
         str(args.accLatency),
         "--X",
-        "configs/sparta/inputs/X.npy",
+        args.X if args.X else "configs/sparta/inputs/X.npy",
         "--W",
-        "configs/sparta/inputs/W.npy",
+        args.W if args.W else "configs/sparta/inputs/W.npy",
     ]
 
+    # only non-sequential models use PEs
     if name != "Sequential":
         cmd += ["--numPEs", str(args.numPEs)]
 
-    print("\n>>>", " ".join(cmd))
-    subprocess.run(cmd, check=True)
+    print("\n>>> Running:", name)
+    print(">>>", " ".join(cmd))
 
-    return os.path.join(outdir, "stats.txt")
+    log_file = os.path.join(outdir, "stdout.log")
+
+    with open(log_file, "w") as f:
+        subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, check=True)
+
+    return outdir

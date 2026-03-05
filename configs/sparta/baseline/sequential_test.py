@@ -15,12 +15,6 @@ from configs.sparta.drivers.sequential import attach_driver
 
 import m5
 
-X, W, seqlen, dmodel = load_X_W(
-    "configs/sparta/inputs/X.npy", "configs/sparta/inputs/W.npy"
-)
-
-root, *mats = attention(X, W, seqlen, dmodel)
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--mulQueueSize", type=int, required=True)
@@ -44,6 +38,13 @@ parser.add_argument("--block-size", type=int, default=16)
 parser.add_argument("--window", type=int, default=32)
 
 args = parser.parse_args()
+
+X, W, seqlen, dmodel = load_X_W(
+    args.X if args.X else "configs/sparta/inputs/X.npy",
+    args.W if args.W else "configs/sparta/inputs/W.npy",
+)
+
+root, *mats = attention(X, W, seqlen, dmodel)
 
 attach_driver(root, args, mats, (seqlen, dmodel))
 

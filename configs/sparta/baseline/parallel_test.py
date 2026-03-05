@@ -16,12 +16,6 @@ from configs.sparta.drivers.parallel import attach_driver
 
 import m5
 
-X, W, seqlen, dmodel = load_X_W(
-    "configs/sparta/inputs/X.npy", "configs/sparta/inputs/W.npy"
-)
-
-root, *mats = attention(X, W, seqlen, dmodel)
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-n", "--numPEs", type=int, required=True)
@@ -54,6 +48,13 @@ pes = make_pes(
     args.mulQueueSize,
     args.accQueueSize,
 )
+
+X, W, seqlen, dmodel = load_X_W(
+    args.X if args.X else "configs/sparta/inputs/X.npy",
+    args.W if args.W else "configs/sparta/inputs/W.npy",
+)
+
+root, *mats = attention(X, W, seqlen, dmodel)
 
 attach_driver(root, pes, args, mats, (seqlen, dmodel))
 

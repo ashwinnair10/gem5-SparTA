@@ -107,6 +107,16 @@ def attention(X, W, seqlen, dmodel):
         Output_base,
     ]
 
-    return
-    root, X_m, WQ_m, WK_m, WV_m,
-    Q_m, K_m, V_m, Scores_m, Prob_m, Output_m
+    return (
+        root,
+        X_m,
+        WQ_m,
+        WK_m,
+        WV_m,
+        Q_m,
+        K_m,
+        V_m,
+        Scores_m,
+        Prob_m,
+        Output_m,
+    )
