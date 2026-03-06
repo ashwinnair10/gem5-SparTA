@@ -49,7 +49,7 @@ pivot = data.pivot(index="model", columns="arch", values="ticks")
 # ------------------------------------------------
 
 pivot.plot(kind="bar", figsize=(10, 6))
-
+plt.yscale("log")
 plt.ylabel("simTicks")
 plt.title("Runtime Comparison")
 plt.xticks(rotation=45)

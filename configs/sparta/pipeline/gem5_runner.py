@@ -38,6 +38,17 @@ def run_test(name, script, outdir, args):
     log_file = os.path.join(outdir, "stdout.log")
 
     with open(log_file, "w") as f:
-        subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, check=True)
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+
+        for line in process.stdout:
+            print(line, end="")
+            f.write(line)
+
+        process.wait()
+
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, cmd)
 
     return outdir

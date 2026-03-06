@@ -44,3 +44,4 @@ stats_sweep
 .env
 sparta_env
 *.npy
+data
