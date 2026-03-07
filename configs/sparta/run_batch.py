@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 RUN_SCRIPT = "configs/sparta/run_all.py"
-INPUT_ROOT = "configs/sparta/inputs/test"
+INPUT_ROOT = "configs/sparta/inputs"
 
 
 parser = argparse.ArgumentParser()
