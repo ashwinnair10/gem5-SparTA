@@ -9,11 +9,7 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 file = sys.argv[1]
-
-# load matrix
 mat = np.load(file)
-
-# sparsity mask
 mask = mat != 0
 
 sparsity = 1.0 - np.count_nonzero(mat) / mat.size

@@ -1,8 +1,8 @@
-# configs/sparta/baseline/spada.py
-
 import argparse
 import os
 import sys
+
+import numpy as np
 
 PROJECT_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../..")
@@ -22,12 +22,10 @@ parser.add_argument("--accQueueSize", type=int, required=True)
 parser.add_argument("--mulLatency", type=int, default=4)
 parser.add_argument("--accLatency", type=int, default=2)
 
-# input selection
 parser.add_argument("--X", type=str, help="Path to X.npy")
 parser.add_argument("--W", type=str, help="Path to W.npy")
 parser.add_argument("--use-gen-inputs", action="store_true")
 
-# sparsity (only for gen_inputs)
 parser.add_argument(
     "--sparsity-mode",
     choices=["none", "random", "block", "local"],
@@ -51,13 +49,7 @@ attach_driver(root, args, mats, (seqlen, dmodel))
 m5.instantiate()
 m5.simulate()
 
-# ---------------- SAVE GEM5 OUTPUT ----------------
-import numpy as np
-
-# mats returned from setup_attention:
-# mats = (Q_m, K_m, V_m, Scores_m, Prob_m, Output_m)
-
-Output_m = mats[-1]  # last matrix is Output
+Output_m = mats[-1]
 seq_len, d_model = seqlen, dmodel
 
 from configs.sparta.common.shared_mem import shared_to_list

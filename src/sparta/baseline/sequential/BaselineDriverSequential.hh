@@ -7,7 +7,8 @@
 #include "sim/sim_object.hh"
 #include "sparta/MatMul.hh"
 
-namespace gem5 {
+namespace gem5
+{
 
 class BaselineDriverSequential : public SimObject
 {
@@ -18,7 +19,7 @@ class BaselineDriverSequential : public SimObject
     float **WK;
     float **WV;
 
-    int projPart;   // 0=Q,1=K,2=V
+    int projPart;
 
     float **Q, **K, **V;
     float **Scores;
@@ -68,6 +69,6 @@ class BaselineDriverSequential : public SimObject
     void startAV();
 };
 
-}
+} // namespace gem5
 
 #endif

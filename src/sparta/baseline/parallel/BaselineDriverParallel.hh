@@ -8,85 +8,81 @@
 #include "params/BaselineDriverParallel.hh"
 #include "sim/sim_object.hh"
 
-namespace gem5{
-    class BaselineDriverParallel : public SimObject
+namespace gem5
+{
+class BaselineDriverParallel : public SimObject
+{
+  public:
+    std::vector<PE_Mul *> mulUnits;
+    std::vector<PE_Acc *> accUnits;
+
+    float **X;
+    float **WQ;
+    float **WK;
+    float **WV;
+
+    int projPart;
+
+    float **Q, **K, **V;
+    float **Scores, **Prob, **Output;
+    float **currentOut;
+
+    int M, N, Kdim;
+    int numPEs;
+    int currentCols;
+
+    uint64_t totalTasks;
+    uint64_t completedTasks;
+
+    std::queue<std::tuple<float, float, int>> stallMulQueue;
+    std::queue<std::pair<float, int>> stallAccQueue;
+
+    std::vector<float> partialSums;
+    std::vector<int> remainingCounts;
+
+    EventFunctionWrapper startEvent;
+    EventFunctionWrapper retryEvent;
+    EventFunctionWrapper tickEvent;
+
+    enum Phase
     {
-    public:
+        PHASE_IDLE,
+        PHASE_PROJ,
+        PHASE_QK,
+        PHASE_SOFTMAX,
+        PHASE_AV,
+        PHASE_DONE
+    } phase;
 
-        std::vector<PE_Mul*> mulUnits;
-        std::vector<PE_Acc*> accUnits;
+    BaselineDriverParallel(const BaselineDriverParallelParams &p);
 
-        float **X;
-        float **WQ;
-        float **WK;
-        float **WV;
+    void startup() override;
 
-        int projPart;
+    void start();
+    void startProjection();
+    void onProjectionDone();
+    void startAV();
+    void dispatchMatMul(float **A, float **B, float **C, int M, int N, int K,
+                        bool transpose = false);
 
+    void onProductReady(int pe, float product, int idx);
+    void onAccReady(int pe, float sum, int idx);
+    void retryStalled();
 
-        float **Q, **K, **V;
-        float **Scores, **Prob, **Output;
-        float **currentOut;
+    void onQKDone();
+    void onAVDone();
+    void runSoftmax();
 
-        int M, N, Kdim;
-        int numPEs;
-        int currentCols;
+    float *softmaxRow;
 
-        uint64_t totalTasks;
-        uint64_t completedTasks;
+  private:
+    statistics::Scalar numReads;
+    statistics::Scalar numWrites;
+    statistics::Scalar stallCycles;
 
-        std::queue<std::tuple<float,float,int>> stallMulQueue;
-        std::queue<std::pair<float,int>> stallAccQueue;
-
-        std::vector<float> partialSums;
-        std::vector<int> remainingCounts;
-
-
-        EventFunctionWrapper startEvent;
-        EventFunctionWrapper retryEvent;
-        EventFunctionWrapper tickEvent;
-
-        enum Phase
-        {
-            PHASE_IDLE,
-            PHASE_PROJ,
-            PHASE_QK,
-            PHASE_SOFTMAX,
-            PHASE_AV,
-            PHASE_DONE
-        } phase;
-
-        BaselineDriverParallel(const BaselineDriverParallelParams &p);
-
-        void startup() override;
-
-        void start();
-        void startProjection();
-        void onProjectionDone();
-        void startAV();
-        void
-        dispatchMatMul(float **A, float **B,
-            float **C, int M, int N,
-            int K,bool transpose=false);
-
-        void onProductReady(int pe, float product,int idx);
-        void onAccReady(int pe, float sum,int idx);
-        void retryStalled();
-
-        void onQKDone();
-        void onAVDone();
-        void runSoftmax();
-
-        float *softmaxRow;
-
-    private:
-        statistics::Scalar numReads;
-        statistics::Scalar numWrites;
-        statistics::Scalar stallCycles;
-
-        void regStats() override;
-        void tick();
-    };
-}
+    void regStats() override;
+    void tick();
+};
+} // namespace gem5
 
 #endif

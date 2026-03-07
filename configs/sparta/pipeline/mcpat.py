@@ -1,4 +1,3 @@
-# configs/sparta/pipeline/mcpat.py
 import os
 import re
 import subprocess

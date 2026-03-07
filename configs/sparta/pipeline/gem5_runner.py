@@ -1,5 +1,3 @@
-# configs/sparta/pipeline/gem5_runner.py
-
 import os
 import subprocess
 
@@ -28,7 +26,6 @@ def run_test(name, script, outdir, args):
         args.W if args.W else "configs/sparta/inputs/W.npy",
     ]
 
-    # only non-sequential models use PEs
     if name != "Sequential":
         cmd += ["--numPEs", str(args.numPEs)]
 

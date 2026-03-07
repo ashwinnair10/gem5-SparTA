@@ -6,12 +6,10 @@ def tag_memory_comparison(M, N, K, numPEs, mul_q, acc_q):
 
     mac_ops = M * N * K
 
-    # ----- full i*N + j tagging -----
     full_tags = M * N
     full_tag_bits = math.ceil(math.log2(full_tags))
     full_total_bits = mac_ops * full_tag_bits
 
-    # ----- SID tagging -----
     max_live_ops = numPEs * (mul_q + acc_q + 1) * 4
     sid_bits = math.ceil(math.log2(max_live_ops))
     sid_total_bits = max_live_ops * sid_bits
@@ -40,7 +38,6 @@ def main():
         description="Tag memory cost using d_model and seq_len"
     )
 
-    # Transformer params
     parser.add_argument(
         "--dmodel", type=int, required=True, help="Model dimension (d_model)"
     )
@@ -48,7 +45,6 @@ def main():
         "--seqlen", type=int, required=True, help="Sequence length"
     )
 
-    # Architecture params
     parser.add_argument("--pes", type=int, required=True, help="Number of PEs")
     parser.add_argument(
         "--mulq", type=int, required=True, help="Mul queue depth"
@@ -59,14 +55,11 @@ def main():
 
     args = parser.parse_args()
 
-    # ---- derived GEMM dimensions ----
     M = args.seqlen
     N = args.seqlen
     K = args.dmodel
 
     stats = tag_memory_comparison(M, N, K, args.pes, args.mulq, args.accq)
-
-    print("\n============= ATTENTION GEMM TAG ANALYSIS =============\n")
 
     print(f"d_model  = {args.dmodel}")
     print(f"seq_len  = {args.seqlen}")
@@ -78,21 +71,19 @@ def main():
 
     print(f"\nTotal MAC operations : {stats['mac_ops']:,}")
 
-    print("\n--- Full (i·N + j) tagging ---")
+    print("\n Full (i·N + j) tagging ")
     print(f"Unique tags          : {stats['full']['unique_tags']:,}")
     print(f"Bits per tag         : {stats['full']['bits_per_tag']}")
     print(f"Total tag memory     : {stats['full']['total_MB']} KB")
 
-    print("\n--- SID tagging ---")
+    print("\n SID tagging ")
     print(f"Max live SIDs        : {stats['sid']['max_live_ops']}")
     print(f"Bits per SID         : {stats['sid']['bits_per_tag']}")
     print(f"Total tag memory     : {stats['sid']['total_MB']} KB")
 
-    print("\n--- Savings ---")
+    print("\n Savings ")
     print(f"Memory saved         : {stats['reduction']['memory_saved_MB']} KB")
     print(f"Reduction factor     : {stats['reduction']['reduction_factor']}×")
-
-    print("\n=======================================================\n")
 
 
 if __name__ == "__main__":

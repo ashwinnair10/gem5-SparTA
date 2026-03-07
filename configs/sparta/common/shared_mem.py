@@ -1,4 +1,3 @@
-# configs/sparta/common/shared_mem.py
 import ctypes
 import mmap
 

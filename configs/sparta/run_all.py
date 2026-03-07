@@ -1,11 +1,15 @@
-# configs/sparta/run_all.py
-
 import argparse
 import os
 import sys
 
 import numpy as np
 from dotenv import load_dotenv
+
+from configs.sparta.pipeline.mcpat import (
+    generate_mcpat_xml,
+    parse_mcpat,
+    run_mcpat,
+)
 
 PROJECT_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../..")
@@ -34,26 +38,21 @@ TESTS = [
 
 parser = argparse.ArgumentParser()
 
-# model parameters
 parser.add_argument("-d", "--dmodel", type=int)
 parser.add_argument("-s", "--seqlen", type=int)
 parser.add_argument("-n", "--numPEs", type=int, required=True)
 
-# accelerator parameters
 parser.add_argument("--mulQueueSize", type=int, required=True)
 parser.add_argument("--accQueueSize", type=int, required=True)
 parser.add_argument("--mulLatency", type=int, default=4)
 parser.add_argument("--accLatency", type=int, default=2)
 
-# workload identification (important for batch)
 parser.add_argument("--model", type=str, default="default")
 
-# input selection
 parser.add_argument("--X", type=str)
 parser.add_argument("--W", type=str)
 parser.add_argument("--use-gen-inputs", action="store_true")
 
-# sparsity (gen_inputs)
 parser.add_argument(
     "--sparsity-mode",
     choices=["none", "random", "block", "local"],
@@ -65,11 +64,6 @@ parser.add_argument("--window", type=int, default=32)
 
 args = parser.parse_args()
 
-
-# ------------------------------------------------
-# Prepare inputs
-# ------------------------------------------------
-
 seqlen, dmodel = prepare_inputs(args)
 
 X_np = np.load(args.X if args.X else "configs/sparta/inputs/X.npy")
@@ -77,9 +71,6 @@ W_np = np.load(args.W if args.W else "configs/sparta/inputs/W.npy")
 
 results = {}
 
-# ------------------------------------------------
-# Run architectures
-# ------------------------------------------------
 
 for name, script in TESTS:
 
@@ -96,12 +87,17 @@ for name, script in TESTS:
         dmodel,
     )
 
-    results[name] = {"simTicks": ticks}
+    stats_file = os.path.join(stats_path, "stats.txt")
 
+    mcxml = os.path.join(stats_path, "mcpat.xml")
+    mcout = os.path.join(stats_path, "mcpat.out")
 
-# ------------------------------------------------
-# Build report
-# ------------------------------------------------
+    generate_mcpat_xml(stats_file, os.environ["MCPAT_BASE_XML"], mcxml)
+    run_mcpat(mcxml, mcout)
+
+    energy = parse_mcpat(mcout)
+
+    results[name] = {"simTicks": ticks, **energy}
 
 df = build_report(results)
 

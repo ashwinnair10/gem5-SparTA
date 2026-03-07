@@ -1,8 +1,9 @@
-# configs/sparta/pipeline/report.py
-
 import os
 
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 ARCH_ORDER = [
     "Sequential",
@@ -18,13 +19,15 @@ def build_report(results):
 
     df.index.name = "Architecture"
 
-    # enforce architecture order if present
     df = df.reindex([a for a in ARCH_ORDER if a in df.index])
 
-    # compute speedup vs sequential
     if "Sequential" in df.index:
         seq_ticks = df.loc["Sequential", "simTicks"]
         df["Speedup"] = seq_ticks / df["simTicks"]
+
+    df["runtime_sec"] = df["simTicks"] / float(os.getenv("CLOCK"))
+    df["Energy"] = df["runtime_dynamic"] * df["runtime_sec"]
+    df["EDP"] = df["Energy"] * df["runtime_sec"]
 
     return df.reset_index()
 

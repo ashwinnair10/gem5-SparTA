@@ -1,5 +1,3 @@
-# configs/sparta/pipeline/inputs.py
-
 import os
 import subprocess
 import sys

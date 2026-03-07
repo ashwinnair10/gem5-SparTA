@@ -1,4 +1,3 @@
-# configs/sparta/common/pe_factory.py
 from m5.objects import (
     PE_Acc,
     PE_Mul,

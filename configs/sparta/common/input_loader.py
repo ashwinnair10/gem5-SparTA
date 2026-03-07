@@ -1,4 +1,3 @@
-# configs/sparta/common/input_loader.py
 import numpy as np
 
 

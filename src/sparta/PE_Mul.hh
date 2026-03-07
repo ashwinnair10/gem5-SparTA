@@ -8,53 +8,60 @@
 #include "params/PE_Mul.hh"
 #include "sim/sim_object.hh"
 
-namespace gem5{
-  class PE_Mul : public SimObject
-  {
-    public:
+namespace gem5
+{
+class PE_Mul : public SimObject
+{
+  public:
+    std::function<void(float, int)> callback;
+    std::queue<std::tuple<float, float, int>> inputQueue;
+    void
+    setCallback(std::function<void(float, int)> cb)
+    {
+        callback = cb;
+    }
 
-      std::function<void(float,int)> callback;
-      std::queue<std::tuple<float,float,int>> inputQueue;
-      void setCallback(std::function<void(float,int)> cb) { callback = cb; }
+    PE_Mul(const PE_MulParams &p);
 
-      PE_Mul(const PE_MulParams &p);
+    void startup() override;
 
-      void startup() override;
+    bool push(float val1, float val2, int id);
 
+    float
+    getResult() const
+    {
+        return result;
+    }
 
-      bool push(float val1,float val2,int id);
+    bool
+    isFull() const
+    {
+        return inputQueue.size() == queue_size;
+    }
 
-      float getResult() const {return result;}
+    void regStats() override;
 
-      bool isFull() const {
-          return inputQueue.size() == queue_size;
-      }
+  private:
+    Tick latency;
+    int island;
+    int queue_size;
+    EventFunctionWrapper computeEvent;
+    EventFunctionWrapper tickEvent;
+    bool busy;
+    float operand1;
+    float operand2;
+    int id;
+    float result;
+    static constexpr const char *GREEN = "\033[32m";
+    static constexpr const char *RESET = "\033[0m";
+    void processNext();
+    void tick();
+    void finishCompute();
 
-      void regStats() override;
-
-    private:
-      Tick latency;
-      int island;
-      int queue_size;
-      EventFunctionWrapper computeEvent;
-      EventFunctionWrapper tickEvent;
-      bool busy;
-      float operand1;
-      float operand2;
-      int id;
-      float result;
-      static constexpr const char* GREEN = "\033[32m";
-      static constexpr const char* RESET = "\033[0m";
-      void processNext();
-      void tick();
-      void finishCompute();
-
-      statistics::Scalar numMulOps;
-      statistics::Scalar activeCycles;
-      statistics::Scalar idleCycles;
-
-
-  };
-}
+    statistics::Scalar numMulOps;
+    statistics::Scalar activeCycles;
+    statistics::Scalar idleCycles;
+};
+} // namespace gem5
 
 #endif

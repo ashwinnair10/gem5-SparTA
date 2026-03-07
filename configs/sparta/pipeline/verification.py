@@ -38,7 +38,6 @@ def verify(gem5_output_path, X_np, W_np, dmodel, tol=1e-4):
 
     gem5_out = np.load(gem5_output_path)
 
-    # convert to list only if required by matmul implementation
     X = X_np.tolist()
     W = W_np.tolist()
 

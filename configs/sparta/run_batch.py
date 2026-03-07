@@ -4,12 +4,11 @@ import subprocess
 import sys
 
 RUN_SCRIPT = "configs/sparta/run_all.py"
-INPUT_ROOT = "configs/sparta/inputs"
+INPUT_ROOT = "configs/sparta/inputs/test"
 
 
 parser = argparse.ArgumentParser()
 
-# accelerator parameters
 parser.add_argument("-n", "--numPEs", type=int, required=True)
 
 parser.add_argument("--mulQueueSize", type=int, required=True)
@@ -18,11 +17,9 @@ parser.add_argument("--accQueueSize", type=int, required=True)
 parser.add_argument("--mulLatency", type=int, default=4)
 parser.add_argument("--accLatency", type=int, default=2)
 
-# optional model params
 parser.add_argument("-d", "--dmodel", type=int)
 parser.add_argument("-s", "--seqlen", type=int)
 
-# input generation
 parser.add_argument("--use-gen-inputs", action="store_true")
 
 parser.add_argument(

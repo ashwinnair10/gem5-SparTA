@@ -76,8 +76,8 @@ namespace gem5 {
 
     void AcceleratorDriver::startup()
     {
-        std::cout << RED
-            << "[SparTA-Acc] startup with " << numPEs << " PEs\n"<< RESET;
+        std::cout << RED << "[SparTA] startup with " << numPEs << " PEs\n"
+                  << RESET;
         for (int i = 0; i < numPEs; i++) {
             mulUnits[i]->setCallback(
                 [this, i](float product,int sid){
@@ -94,18 +94,9 @@ namespace gem5 {
 
     void AcceleratorDriver::start()
     {
-        // std::cout << RED<< "[SparTA-Accl] Starting Q*K^T \n"<< RESET;
-        // phase = PHASE_QK;
-        // currentOut=Scores;
-        // currentCols=N;
-        // numReads  += M * Kdim;
-        // numReads  += N * Kdim;
-        // numWrites += M * N;
-
-        // dispatchMatMul(Q, K, Scores, M, N, Kdim);
-            std::cout << RED<< "[SparTA-Accl] Starting Projection \n"<< RESET;
-            phase = PHASE_PROJ;
-            startProjection();
+        std::cout << RED << "[SparTA] Starting Projection \n" << RESET;
+        phase = PHASE_PROJ;
+        startProjection();
     }
 
     void AcceleratorDriver::startProjection()
@@ -126,10 +117,9 @@ namespace gem5 {
 
         currentOut = out;
         currentCols = Kdim;
-        numReads  += M * Kdim;        // X
-        numReads  += Kdim * Kdim;     // W*
-        numWrites += M * Kdim;        // Q/K/V
-
+        numReads += M * Kdim;
+        numReads += Kdim * Kdim;
+        numWrites += M * Kdim;
 
         dispatchMatMul(X, weight, out, M, Kdim, Kdim);
     }
@@ -140,15 +130,14 @@ namespace gem5 {
         if (projPart < 3) {
             startProjection();
         } else {
-            std::cout << RED<<
-            "[SparTA-Accl] Projection Done. Starting Q*K^T \n"
-            << RESET;
+            std::cout << RED << "[SparTA] Projection Done. Starting Q*K^T \n"
+                      << RESET;
             phase = PHASE_QK;
             currentOut=Scores;
             currentCols=N;
-            numReads  += M * Kdim;        // Q
-            numReads  += N * Kdim;        // K
-            numWrites += M * N;           // Scores
+            numReads += M * Kdim;
+            numReads += N * Kdim;
+            numWrites += M * N;
 
             dispatchMatMul(Q, K, Scores, M, N, Kdim,true);
         }
@@ -241,18 +230,12 @@ namespace gem5 {
 
     void AcceleratorDriver::onProductReady(int pe, float product,int sid)
     {
-        // std::cout << RED << "Phase:" << phase <<" "
-        //     << "[SparTA-AccDriver] Product ready from PE " << pe
-        //     << ": " << product << " for SID " << sid
-        //     << "\n" << RESET;
         mulLoad[pe]--;
         sidRemainingMul[sid]--;
         accTaskQueue.push({product,sid});
         tryScheduleAcc();
         tryScheduleMul();
-
     }
-
 
     void AcceleratorDriver::tryScheduleAcc()
     {
@@ -274,9 +257,7 @@ namespace gem5 {
                 int pe = (home + off) % numPEs;
 
                 if (accUnits[pe]->push(t.product, t.sid)) {
-                    // std::cout << RED
-                    //     << "[SparTA-AccDriver] Scheduled Acc Task SID: "
-                    //     << t.sid << " on PE: " << pe << "\n" << RESET;
+
                     issued = true;
                     break;
                 }
@@ -331,12 +312,7 @@ namespace gem5 {
     {
         sidRemainingAcc[sid]--;
         sidPartialSum[sid] += sum;
-        // std::cout << RED
-        //     << "[SparTA-AccDriver] Acc Task SID: "
-        //     << sid << " completed on PE: " << pe
-        //     << " -- Partial Sum: " << sum
-        //     << " -- Remaining Ops: " << sidRemainingAcc[sid]
-        //     << "\n" << RESET;
+
         if (sidRemainingAcc[sid] == 0) {
 
             int idx = sidToIdx[sid];
@@ -368,7 +344,7 @@ namespace gem5 {
 
     void AcceleratorDriver::onQKDone()
     {
-        std::cout << RED<< "[SparTA-Accl] QK done. Running softmax.\n"<< RESET;
+        std::cout << RED << "[SparTA] QK done. Running softmax.\n" << RESET;
         phase = PHASE_SOFTMAX;
         runSoftmax();
         startAV();
@@ -396,7 +372,7 @@ namespace gem5 {
     void AcceleratorDriver::startAV()
     {
         phase = PHASE_AV;
-        std::cout << RED<< "[SparTA-Accl] Starting A*V\n"<< RESET;
+        std::cout << RED << "[SparTA] Starting A*V\n" << RESET;
         currentOut=Output;
         currentCols=Kdim;
         numReads  += M * N;
@@ -408,8 +384,8 @@ namespace gem5 {
 
     void AcceleratorDriver::onAVDone()
     {
-        std::cout << RED
-            << "[SparTA-Accl] AV done. Accelerator complete.\n"<< RESET;
+        std::cout << RED << "[SparTA] AV done. Accelerator complete.\n"
+                  << RESET;
         phase = PHASE_DONE;
         exitSimLoop("Accelerator done");
     }

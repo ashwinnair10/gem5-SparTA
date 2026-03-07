@@ -1,5 +1,3 @@
-# configs/sparta/pipeline/stats.py
-
 import math
 import os
 

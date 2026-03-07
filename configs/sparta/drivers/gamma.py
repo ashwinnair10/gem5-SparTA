@@ -1,4 +1,3 @@
-# configs/sparta/drivers/spada.py
 import ctypes
 
 from m5.objects import GammaDriver

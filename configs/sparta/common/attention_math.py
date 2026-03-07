@@ -1,4 +1,3 @@
-# configs/sparta/common/attention_math.py
 import math
 
 

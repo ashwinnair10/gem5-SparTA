@@ -3,10 +3,6 @@ import os
 
 import numpy as np
 
-# ----------------------------
-# Sparsity helpers
-# ----------------------------
-
 
 def random_sparsity(mat, sparsity):
     if sparsity <= 0.0:
@@ -42,10 +38,6 @@ def local_attention_sparsity(X, window):
     return X
 
 
-# ----------------------------
-# Argument parsing
-# ----------------------------
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--dmodel", type=int, required=True)
 parser.add_argument("--seqlen", type=int, required=True)
@@ -76,40 +68,23 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-# ----------------------------
-# Output directory
-# ----------------------------
-
 os.makedirs("configs/sparta/inputs", exist_ok=True)
 
 np.random.seed(42)
 
-# ----------------------------
-# Generate dense matrices
-# ----------------------------
-
 X = np.random.uniform(-1, 1, (args.seqlen, args.dmodel)).astype(np.float32)
 W = np.random.uniform(-1, 1, (args.dmodel, 3 * args.dmodel)).astype(np.float32)
 
-# ----------------------------
-# Apply sparsity
-# ----------------------------
 
 if args.sparsity_mode == "random":
-    # X = random_sparsity(X, args.sparsity)
     W = random_sparsity(W, args.sparsity)
 
 elif args.sparsity_mode == "block":
-    # X = block_sparsity(X, args.block_size, args.sparsity)
     W = block_sparsity(W, args.block_size, args.sparsity)
 
 elif args.sparsity_mode == "local":
     X = local_attention_sparsity(X, args.window)
-    # W usually stays dense for attention workloads
 
-# ----------------------------
-# Save
-# ----------------------------
 
 np.save("configs/sparta/inputs/X.npy", X)
 np.save("configs/sparta/inputs/W.npy", W)

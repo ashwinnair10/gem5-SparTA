@@ -11,22 +11,18 @@
 #include "sparta/PE_Acc.hh"
 #include "sparta/PE_Mul.hh"
 
-namespace gem5 {
+namespace gem5
+{
 
 class GammaDriver : public SimObject
 {
   public:
-
     GammaDriver(const GammaDriverParams &p);
 
     void startup() override;
     void regStats() override;
 
   private:
-
-    //////////////////////////////////////////////////////
-    // MATRIX POINTERS (same as baseline)
-
     float **X;
     float **WQ;
     float **WK;
@@ -42,9 +38,6 @@ class GammaDriver : public SimObject
     float **Prob;
     float **Output;
 
-    //////////////////////////////////////////////////////
-    // CURRENT MATMUL STATE
-
     float **currentA;
     float **currentB;
     float **currentOut;
@@ -52,17 +45,11 @@ class GammaDriver : public SimObject
     int currentCols;
     int currentKDim;
 
-    //////////////////////////////////////////////////////
-    // DIMENSIONS
-
     int M;
     int N;
     int Kdim;
 
     int numPEs;
-
-    //////////////////////////////////////////////////////
-    // PHASE CONTROL
 
     enum Phase
     {
@@ -78,27 +65,15 @@ class GammaDriver : public SimObject
 
     bool transpose;
 
+    std::vector<PE_Mul *> mulUnits;
+    std::vector<PE_Acc *> accUnits;
 
-
-    //////////////////////////////////////////////////////
-    // PE UNITS
-
-    std::vector<PE_Mul*> mulUnits;
-    std::vector<PE_Acc*> accUnits;
-
-    //////////////////////////////////////////////////////
-    // GAMMA STATE
-
-    // which row each PE owns
     std::vector<int> rowAssigned;
 
-    // remaining ops per PE
     std::vector<int> remainingOps;
 
-    // local accumulator per PE
-    std::vector<std::unordered_map<int,float>> localAcc;
+    std::vector<std::unordered_map<int, float>> localAcc;
 
-    // row scheduler
     std::queue<int> rowQueue;
 
     std::vector<int> pe_k;
@@ -115,14 +90,10 @@ class GammaDriver : public SimObject
     CSR A_csr;
     CSR B_csr;
 
-    static constexpr const char* RED = "\033[31m";
-    static constexpr const char* RESET = "\033[0m";
-    static constexpr const char* GREEN = "\033[32m";
-    static constexpr const char* YELLOW = "\033[33m";
-
-
-    //////////////////////////////////////////////////////
-    // STALL STRUCTURES
+    static constexpr const char *RED = "\033[31m";
+    static constexpr const char *RESET = "\033[0m";
+    static constexpr const char *GREEN = "\033[32m";
+    static constexpr const char *YELLOW = "\033[33m";
 
     struct MulStallTask
     {
@@ -142,25 +113,15 @@ class GammaDriver : public SimObject
     std::queue<MulStallTask> stallMulQueue;
     std::queue<AccStallTask> stallAccQueue;
 
-    //////////////////////////////////////////////////////
-    // EVENTS
-
     EventFunctionWrapper startEvent;
     EventFunctionWrapper retryEvent;
     EventFunctionWrapper tickEvent;
 
-    //////////////////////////////////////////////////////
-    // STATS
-
     statistics::Scalar stallCycles;
-
-    //////////////////////////////////////////////////////
-    // SOFTMAX BUFFER
+    statistics::Scalar numReads;
+    statistics::Scalar numWrites;
 
     float *softmaxRow;
-
-    //////////////////////////////////////////////////////
-    // CORE FUNCTIONS
 
     void start();
 
@@ -176,9 +137,6 @@ class GammaDriver : public SimObject
 
     void runSoftmax();
 
-    //////////////////////////////////////////////////////
-    // GAMMA CORE FUNCTIONS
-
     void dispatchMatMul(int rows);
 
     void assignRows();
@@ -193,9 +151,6 @@ class GammaDriver : public SimObject
 
     void buildCSR(float **mat, int rows, int cols, CSR &csr);
     void buildCSRTranspose(float **mat, int rows, int cols, CSR &csr);
-
-    //////////////////////////////////////////////////////
-    // CALLBACKS
 
     void onProductReady(int pe, float product, int col);
 

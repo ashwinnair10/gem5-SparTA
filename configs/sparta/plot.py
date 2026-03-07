@@ -9,6 +9,8 @@ OUT_DIR = "plots"
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
+ARCH_ORDER = ["Sequential", "Parallel", "Gamma", "SparTA"]
+
 records = []
 
 # ------------------------------------------------
@@ -30,6 +32,9 @@ for model in sorted(os.listdir(STATS_ROOT)):
                 "model": model,
                 "arch": row["Architecture"],
                 "ticks": row["simTicks"],
+                "energy": row.get("Energy"),
+                "edp": row.get("EDP"),
+                "power": row.get("runtime_dynamic"),
             }
         )
 
@@ -44,110 +49,160 @@ if data.empty:
 
 pivot = data.pivot(index="model", columns="arch", values="ticks")
 
+pivot = pivot.reindex(columns=[a for a in ARCH_ORDER if a in pivot.columns])
+
 # ------------------------------------------------
-# 1. Runtime bar chart
+# Runtime plot (log scale)
 # ------------------------------------------------
 
-pivot.plot(kind="bar", figsize=(10, 6))
+plt.figure(figsize=(12, 6))
+
+pivot.plot(kind="bar", ax=plt.gca())
+
 plt.yscale("log")
-plt.ylabel("simTicks")
+plt.ylabel("simTicks (log scale)")
 plt.title("Runtime Comparison")
-plt.xticks(rotation=45)
-plt.tight_layout()
+plt.xticks(rotation=60)
 
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+
+plt.tight_layout()
 plt.savefig(f"{OUT_DIR}/runtime_bar.png")
+plt.close()
+
 print("Saved runtime_bar.png")
 
-plt.close()
-
 # ------------------------------------------------
-# 2. Speedup vs Sequential
+# Speedup vs Sequential
 # ------------------------------------------------
 
 if "Sequential" in pivot.columns:
 
-    speedup = pivot.copy()
+    speedup = pivot.apply(lambda col: pivot["Sequential"] / col)
 
-    for arch in pivot.columns:
-        speedup[arch] = pivot["Sequential"] / pivot[arch]
+    speedup = speedup.drop(columns=["Sequential"], errors="ignore")
 
-    speedup.drop(columns=["Sequential"], inplace=True)
+    plt.figure(figsize=(12, 6))
 
-    speedup.plot(kind="bar", figsize=(10, 6))
+    speedup.plot(kind="bar", ax=plt.gca())
 
+    plt.yscale("log")
     plt.ylabel("Speedup vs Sequential")
     plt.title("Architecture Speedup")
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=60)
+
+    plt.grid(axis="y", linestyle="--", alpha=0.5)
+
     plt.tight_layout()
-
     plt.savefig(f"{OUT_DIR}/speedup_bar.png")
-    print("Saved speedup_bar.png")
-
     plt.close()
 
-# ------------------------------------------------
-# 3. Normalized runtime
-# ------------------------------------------------
-
-norm = pivot.div(pivot["Sequential"], axis=0)
-
-norm.plot(kind="bar", figsize=(10, 6))
-
-plt.ylabel("Normalized Runtime")
-plt.title("Normalized Runtime (Sequential = 1)")
-plt.xticks(rotation=45)
-plt.tight_layout()
-
-plt.savefig(f"{OUT_DIR}/normalized_runtime.png")
-print("Saved normalized_runtime.png")
-
-plt.close()
+    print("Saved speedup_bar.png")
 
 # ------------------------------------------------
-# 4. Histogram distribution
-# ------------------------------------------------
-
-plt.figure(figsize=(8, 6))
-
-for arch in data["arch"].unique():
-    subset = data[data["arch"] == arch]
-    plt.hist(subset["ticks"], bins=10, alpha=0.6, label=arch)
-
-plt.xlabel("simTicks")
-plt.ylabel("Frequency")
-plt.title("Tick Distribution")
-plt.legend()
-plt.tight_layout()
-
-plt.savefig(f"{OUT_DIR}/tick_histogram.png")
-print("Saved tick_histogram.png")
-
-plt.close()
-
-# ------------------------------------------------
-# 5. Geometric mean speedup
+# Normalized runtime
 # ------------------------------------------------
 
 if "Sequential" in pivot.columns:
 
-    speedup = pivot.copy()
+    norm = pivot.div(pivot["Sequential"], axis=0)
 
-    for arch in pivot.columns:
-        speedup[arch] = pivot["Sequential"] / pivot[arch]
+    plt.figure(figsize=(12, 6))
 
-    speedup = speedup.drop(columns=["Sequential"])
+    norm.plot(kind="bar", ax=plt.gca())
+
+    plt.yscale("log")
+    plt.ylabel("Normalized Runtime (Sequential = 1)")
+    plt.title("Normalized Runtime")
+    plt.xticks(rotation=60)
+
+    plt.grid(axis="y", linestyle="--", alpha=0.5)
+
+    plt.tight_layout()
+    plt.savefig(f"{OUT_DIR}/normalized_runtime.png")
+    plt.close()
+
+    print("Saved normalized_runtime.png")
+
+# ------------------------------------------------
+# Geometric mean speedup
+# ------------------------------------------------
+
+if "Sequential" in pivot.columns:
+
+    speedup = pivot.apply(lambda col: pivot["Sequential"] / col)
+    speedup = speedup.drop(columns=["Sequential"], errors="ignore")
 
     gmean = np.exp(np.log(speedup).mean())
 
-    gmean.plot(kind="bar", figsize=(8, 5))
+    plt.figure(figsize=(8, 5))
+
+    gmean.plot(kind="bar")
 
     plt.ylabel("Geometric Mean Speedup")
     plt.title("Overall Architecture Speedup")
-    plt.tight_layout()
 
+    plt.grid(axis="y", linestyle="--", alpha=0.5)
+
+    plt.tight_layout()
     plt.savefig(f"{OUT_DIR}/geomean_speedup.png")
+    plt.close()
+
     print("Saved geomean_speedup.png")
 
-    plt.close()
+# ------------------------------------------------
+# Energy
+# ------------------------------------------------
+
+pivot_energy = data.pivot(index="model", columns="arch", values="energy")
+pivot_energy = pivot_energy.reindex(columns=ARCH_ORDER)
+
+pivot_energy.plot(kind="bar", figsize=(12, 6))
+plt.yscale("log")
+plt.ylabel("Energy (J)")
+plt.title("Energy Consumption")
+plt.xticks(rotation=60)
+plt.tight_layout()
+
+plt.savefig(f"{OUT_DIR}/energy_bar.png")
+plt.close()
+
+print("Saved energy_bar.png")
+
+# ------------------------------------------------
+# Normalized Energy
+# ------------------------------------------------
+
+norm_energy = pivot_energy.div(pivot_energy["Sequential"], axis=0)
+
+norm_energy.plot(kind="bar", figsize=(12, 6))
+plt.ylabel("Normalized Energy")
+plt.title("Energy Normalized to Sequential")
+plt.xticks(rotation=60)
+
+plt.tight_layout()
+plt.savefig(f"{OUT_DIR}/energy_norm.png")
+plt.close()
+
+print("Saved energy_norm.png")
+
+# ------------------------------------------------
+# EDP
+# ------------------------------------------------
+
+pivot_edp = data.pivot(index="model", columns="arch", values="edp")
+pivot_edp = pivot_edp.reindex(columns=ARCH_ORDER)
+
+pivot_edp.plot(kind="bar", figsize=(12, 6))
+plt.yscale("log")
+plt.ylabel("EDP")
+plt.title("Energy-Delay Product")
+plt.xticks(rotation=60)
+
+plt.tight_layout()
+plt.savefig(f"{OUT_DIR}/edp_bar.png")
+plt.close()
+
+print("Saved edp_bar.png")
 
 print("\nAll plots saved in:", OUT_DIR)

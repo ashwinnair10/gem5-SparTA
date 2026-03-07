@@ -11,125 +11,121 @@
 #include "params/AcceleratorDriver.hh"
 #include "sim/sim_object.hh"
 
-namespace gem5{
-    class AcceleratorDriver : public SimObject
+namespace gem5
+{
+class AcceleratorDriver : public SimObject
+{
+  public:
+    std::vector<PE_Mul *> mulUnits;
+    std::vector<PE_Acc *> accUnits;
+
+    float **X, **WQ, **WK, **WV;
+
+    int projPart;
+
+    float **Q, **K, **V;
+    float **Scores, **Prob, **Output;
+
+    float **currentOut;
+
+    int M, N, Kdim;
+
+    int numPEs;
+
+    EventFunctionWrapper startEvent;
+    EventFunctionWrapper tickEvent;
+
+    enum Phase
     {
-    public:
+        PHASE_IDLE,
+        PHASE_PROJ,
+        PHASE_QK,
+        PHASE_SOFTMAX,
+        PHASE_AV,
+        PHASE_DONE
+    } phase;
 
-        std::vector<PE_Mul*> mulUnits;
-        std::vector<PE_Acc*> accUnits;
+    int currentCols;
 
-        float **X, **WQ, **WK, **WV;
+    uint64_t totalTasks;
+    uint64_t completedTasks;
 
-        int projPart;
-
-        float **Q, **K, **V;
-        float **Scores, **Prob, **Output;
-
-        float **currentOut;
-
-        int M, N, Kdim;
-
-        int numPEs;
-
-
-
-        EventFunctionWrapper startEvent;
-        EventFunctionWrapper tickEvent;
-
-        enum Phase
-        {
-            PHASE_IDLE,
-            PHASE_PROJ,
-            PHASE_QK,
-            PHASE_SOFTMAX,
-            PHASE_AV,
-            PHASE_DONE
-        } phase;
-
-        int currentCols;
-
-        uint64_t totalTasks;
-        uint64_t completedTasks;
-
-        struct MulTask
-        {
-            float a,b;
-            int idx;
-        };
-
-        std::queue<MulTask> mulTaskQueue;
-
-        struct AccTask
-        {
-            float product;
-            int sid;
-        };
-        std::queue<AccTask> accTaskQueue;
-
-        std::vector<int> remaining;
-        std::unordered_map<int,int> idxToSID;
-        std::vector<int> accBusy;
-        uint64_t hashSeed = 1632093731;
-        std::vector<int> mulLoad;
-        std::unordered_map<int, int> sidToAccPE;
-
-        int maxLiveOps;
-        std::queue<int> freeSIDs;
-        std::vector<int> sidToIdx;
-        std::vector<int> sidRemainingAcc;
-        std::vector<int> sidRemainingMul;
-        std::vector<float> sidPartialSum;
-
-
-        AcceleratorDriver(const AcceleratorDriverParams &p);
-
-        void startup() override;
-
-        void start();
-        void startProjection();
-        void onProjectionDone();
-        void startAV();
-        void
-        dispatchMatMul(float **A, float **B,
-            float **C, int M, int N,
-            int K,bool transpose=false);
-
-        void tryScheduleMul();
-        void tryScheduleAcc();
-        int findFreeAccPE(int sid);
-
-        void onProductReady(int pe, float product,int sid);
-        void onAccReady(int pe, float sum,int sid);
-
-        void onQKDone();
-        void onAVDone();
-        void runSoftmax();
-
-        float *softmaxRow;
-
-        static constexpr const char* RED = "\033[31m";
-        static constexpr const char* RESET = "\033[0m";
-
-        int hashToPE(int idx) const {
-            return (idx ^ hashSeed) % numPEs;
-        }
-
-        void reseed();
-
-    private:
-        statistics::Scalar numReads;
-        statistics::Scalar numWrites;
-        statistics::Scalar stallCycles;
-
-        void regStats() override;
-
-        int allocSID(int idx,int nnz);
-        void freeSID(int sid);
-
-        void tick();
-
+    struct MulTask
+    {
+        float a, b;
+        int idx;
     };
-}
+
+    std::queue<MulTask> mulTaskQueue;
+
+    struct AccTask
+    {
+        float product;
+        int sid;
+    };
+    std::queue<AccTask> accTaskQueue;
+
+    std::vector<int> remaining;
+    std::unordered_map<int, int> idxToSID;
+    std::vector<int> accBusy;
+    uint64_t hashSeed = 1632093731;
+    std::vector<int> mulLoad;
+    std::unordered_map<int, int> sidToAccPE;
+
+    int maxLiveOps;
+    std::queue<int> freeSIDs;
+    std::vector<int> sidToIdx;
+    std::vector<int> sidRemainingAcc;
+    std::vector<int> sidRemainingMul;
+    std::vector<float> sidPartialSum;
+
+    AcceleratorDriver(const AcceleratorDriverParams &p);
+
+    void startup() override;
+
+    void start();
+    void startProjection();
+    void onProjectionDone();
+    void startAV();
+    void dispatchMatMul(float **A, float **B, float **C, int M, int N, int K,
+                        bool transpose = false);
+
+    void tryScheduleMul();
+    void tryScheduleAcc();
+    int findFreeAccPE(int sid);
+
+    void onProductReady(int pe, float product, int sid);
+    void onAccReady(int pe, float sum, int sid);
+
+    void onQKDone();
+    void onAVDone();
+    void runSoftmax();
+
+    float *softmaxRow;
+
+    static constexpr const char *RED = "\033[31m";
+    static constexpr const char *RESET = "\033[0m";
+
+    int
+    hashToPE(int idx) const
+    {
+        return (idx ^ hashSeed) % numPEs;
+    }
+
+    void reseed();
+
+  private:
+    statistics::Scalar numReads;
+    statistics::Scalar numWrites;
+    statistics::Scalar stallCycles;
+
+    void regStats() override;
+
+    int allocSID(int idx, int nnz);
+    void freeSID(int sid);
+
+    void tick();
+};
+} // namespace gem5
 
 #endif

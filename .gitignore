@@ -45,3 +45,4 @@ stats_sweep
 sparta_env
 *.npy
 data
+plots
