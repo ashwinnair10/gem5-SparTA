@@ -39,10 +39,10 @@ configs/dram/lowp_sweep.cfg
 typings
 .DS_Store
 stats
-# configs/sparta/inputs
+configs/sparta/inputs
 stats_sweep
 .env
 sparta_env
 *.npy
-data
+# data
 plots
