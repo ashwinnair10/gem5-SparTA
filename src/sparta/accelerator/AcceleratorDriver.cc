@@ -40,7 +40,7 @@ namespace gem5 {
         completedTasks = 0;
         accBusy.resize(numPEs, -1);
         mulLoad.resize(numPEs,0);
-        remaining.resize(M*N,0);
+        // remaining.resize(M*N,0);
 
         maxLiveOps=numPEs*(p.mul_queue_depth+p.acc_queue_depth+1)*4;
         sidToIdx.resize(maxLiveOps);
@@ -147,13 +147,12 @@ namespace gem5 {
     AcceleratorDriver::dispatchMatMul(float **A, float **B, float **C,
                                         int M, int N, int K,bool transpose)
     {
-        remaining.clear();
-        remaining.resize(M*N);
+        // remaining.clear();
+        // remaining.resize(M*N);
         assert(freeSIDs.size() == maxLiveOps);
 
         mulTaskQueue = std::queue<MulTask>();
         accTaskQueue = std::queue<AccTask>();
-        sidToAccPE.clear();
 
         totalTasks = M * N;
         completedTasks = 0;
@@ -161,6 +160,7 @@ namespace gem5 {
         for (int i = 0; i < M; i++) {
             for (int j = 0; j < N; j++) {
                 int idx = i * N + j;
+                std::vector<MulTask> tmp;
                 nz = 0;
 
                 for (int k = 0; k < K; k++) {
@@ -168,11 +168,15 @@ namespace gem5 {
                     float op2=transpose?B[j][k]:B[k][j];
                     if (op1 != 0 && op2 != 0){
                         nz++;
-                        mulTaskQueue.push({op1, op2, idx});
+                        tmp.push_back({op1, op2, idx, 0});
                     }
                 }
 
-                remaining[idx]=nz;
+                // remaining[idx]=nz;
+                for (auto &t : tmp) {
+                    t.nnz = nz;
+                    mulTaskQueue.push(t);
+                }
 
                 if (nz == 0) {
                     currentOut[i][j] = 0;
@@ -205,7 +209,7 @@ namespace gem5 {
                     if (freeSIDs.empty())
                         return;
                     if (sid==-1){
-                        sid=allocSID(t.idx,remaining[t.idx]);
+                        sid = allocSID(t.idx, t.nnz);
                         idxToSID[t.idx]=sid;
                     }
                     if (mulUnits[pe]->push(t.a, t.b,sid)){

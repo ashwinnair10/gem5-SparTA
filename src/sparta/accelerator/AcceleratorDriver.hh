@@ -54,6 +54,7 @@ class AcceleratorDriver : public SimObject
     {
         float a, b;
         int idx;
+        int nnz;
     };
 
     std::queue<MulTask> mulTaskQueue;
@@ -65,12 +66,11 @@ class AcceleratorDriver : public SimObject
     };
     std::queue<AccTask> accTaskQueue;
 
-    std::vector<int> remaining;
+    // std::vector<int> remaining;
     std::unordered_map<int, int> idxToSID;
     std::vector<int> accBusy;
     uint64_t hashSeed = 1632093731;
     std::vector<int> mulLoad;
-    std::unordered_map<int, int> sidToAccPE;
 
     int maxLiveOps;
     std::queue<int> freeSIDs;
