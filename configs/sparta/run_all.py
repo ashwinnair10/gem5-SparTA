@@ -74,6 +74,8 @@ results = {}
 
 for name, script in TESTS:
 
+    print(f"[{args.model}] >>> Running: {name}", flush=True)
+
     stats_dir = f"stats/{args.model}/{name.lower()}"
 
     stats_path = run_test(name, script, stats_dir, args)
@@ -98,6 +100,8 @@ for name, script in TESTS:
     energy = parse_mcpat(mcout)
 
     results[name] = {"simTicks": ticks, **energy}
+
+    print(f"[{args.model}] ✔ Done: {name}", flush=True)
 
 df = build_report(results)
 

@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 RUN_SCRIPT = "configs/sparta/run_all.py"
-INPUT_ROOT = "configs/sparta/inputs/test"
+INPUT_ROOT = "configs/sparta/inputs"
 
 
 parser = argparse.ArgumentParser()
@@ -78,30 +78,86 @@ def run_model(model_dir):
     w_path = os.path.join(model_dir, "W.npy")
 
     if not (os.path.exists(x_path) and os.path.exists(w_path)):
-        print(f"Skipping {model_dir} (missing X/W)")
-        return
+        return f"[SKIP] {model_dir}"
 
     model_name = os.path.basename(model_dir)
 
     cmd = build_base_cmd()
-
     cmd += ["--X", x_path, "--W", w_path, "--model", model_name]
 
-    print("\n====================================")
-    print(f"Running workload: {model_name}")
-    print("Command:", " ".join(cmd))
-    print("====================================")
+    os.makedirs("logs", exist_ok=True)
+    log_file = f"logs/{model_name}.log"
 
-    subprocess.run(cmd, check=True)
+    print(f"[START] {model_name}", flush=True)
+
+    with open(log_file, "w") as f:
+        subprocess.run(
+            cmd,
+            stdout=f,
+            stderr=f,
+            text=True,
+            check=True,
+        )
+
+    return f"[DONE] {model_name} (log: {log_file})"
+
+
+import multiprocessing
+from concurrent.futures import (
+    ProcessPoolExecutor,
+    as_completed,
+)
+
+
+def model_priority(path):
+    name = os.path.basename(path).lower()
+    parts = name.split("_")
+
+    if len(parts) < 3:
+        return (2, 4, 4, name)
+
+    sparsity = parts[-1]
+    dataset = parts[-2]
+    model = "_".join(parts[:-2])
+
+    if model in ("prajjwal1_bert-tiny"):
+        model_rank = 0
+    else:
+        model_rank = 1
+
+    dataset_order = {
+        "wikitext": 0,
+        "glue": 1,
+        "squad": 2,
+        "imdb": 3,
+    }
+    dataset_rank = dataset_order.get(dataset, 4)
+
+    sparsity_order = {
+        "50": 0,
+        "80": 1,
+        "90": 2,
+        "dense": 3,
+    }
+    sparsity_rank = sparsity_order.get(sparsity, 4)
+
+    return (model_rank, dataset_rank, sparsity_rank, name)
 
 
 def main():
+    model_dirs = [e.path for e in os.scandir(INPUT_ROOT) if e.is_dir()]
+    model_dirs = sorted(model_dirs, key=model_priority)
 
-    model_dirs = sorted(os.scandir(INPUT_ROOT), key=lambda e: e.name)
+    max_workers = min(10, multiprocessing.cpu_count())
 
-    for entry in model_dirs:
-        if entry.is_dir():
-            run_model(entry.path)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(run_model, d) for d in model_dirs]
+
+        for f in as_completed(futures):
+            try:
+                print(f.result(), flush=True)
+            except Exception as e:
+                print("[ERROR]", e, flush=True)
 
 
 if __name__ == "__main__":

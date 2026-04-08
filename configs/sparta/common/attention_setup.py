@@ -1,6 +1,5 @@
 import numpy as np
 from numpy import shape
-from sympy import root
 
 from m5.objects import Root
 
