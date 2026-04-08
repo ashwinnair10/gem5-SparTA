@@ -43,6 +43,8 @@ configs/sparta/inputs
 stats_sweep
 .env
 sparta_env
+sparta_venv
 *.npy
 # data
 plots
+logs
