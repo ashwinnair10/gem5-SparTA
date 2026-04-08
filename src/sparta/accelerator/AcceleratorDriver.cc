@@ -44,7 +44,6 @@ namespace gem5 {
 
         maxLiveOps=numPEs*(p.mul_queue_depth+p.acc_queue_depth+1)*4;
         sidToIdx.resize(maxLiveOps);
-        sidRemainingMul.resize(maxLiveOps);
         sidRemainingAcc.resize(maxLiveOps);
         sidPartialSum.resize(maxLiveOps);
 
@@ -235,7 +234,6 @@ namespace gem5 {
     void AcceleratorDriver::onProductReady(int pe, float product,int sid)
     {
         mulLoad[pe]--;
-        sidRemainingMul[sid]--;
         accTaskQueue.push({product,sid});
         tryScheduleAcc();
         tryScheduleMul();
@@ -417,7 +415,6 @@ namespace gem5 {
 
         sidToIdx[sid] = idx;
         sidRemainingAcc[sid] = nnz;
-        sidRemainingMul[sid] = nnz;
         sidPartialSum[sid] = 0.0f;
 
         return sid;

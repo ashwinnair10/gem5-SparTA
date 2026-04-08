@@ -76,7 +76,6 @@ class AcceleratorDriver : public SimObject
     std::queue<int> freeSIDs;
     std::vector<int> sidToIdx;
     std::vector<int> sidRemainingAcc;
-    std::vector<int> sidRemainingMul;
     std::vector<float> sidPartialSum;
 
     AcceleratorDriver(const AcceleratorDriverParams &p);
