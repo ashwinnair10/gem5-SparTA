@@ -5,7 +5,7 @@ import sys
 
 RUN_SCRIPT = "configs/sparta/run_all.py"
 INPUT_ROOT = "configs/sparta/inputs"
-
+STATS_ROOT = "stats"
 
 parser = argparse.ArgumentParser()
 
@@ -73,6 +73,10 @@ def build_base_cmd():
 
 
 def run_model(model_dir):
+    model_name = os.path.basename(model_dir)
+    results_path = os.path.join(STATS_ROOT, model_name, "results.csv")
+    if os.path.exists(results_path):
+        return f"[SKIP] {model_name} (results.csv already exists)"
 
     x_path = os.path.join(model_dir, "X.npy")
     w_path = os.path.join(model_dir, "W.npy")
