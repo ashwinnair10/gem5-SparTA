@@ -39,6 +39,12 @@ class PE_Mul : public SimObject
         return inputQueue.size() == queue_size;
     }
 
+    int
+    queueSize() const
+    {
+        return inputQueue.size();
+    }
+
     void regStats() override;
 
   private:

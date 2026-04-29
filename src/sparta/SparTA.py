@@ -128,3 +128,29 @@ class GammaDriver(SimObject):
     M = Param.Int("Seq length")
     N = Param.Int("Seq length again")
     Kdim = Param.Int("Head dim")
+
+
+class PadeDriver(SimObject):
+    type = "PadeDriver"
+    cxx_header = "sparta/baseline/pade/PadeDriver.hh"
+    cxx_class = "gem5::PadeDriver"
+
+    numPEs = Param.Int(0, "Number of PE_Mul/PE_Acc units")
+    mul_units = VectorParam.PE_Mul([], "List of PE_Mul units")
+    acc_units = VectorParam.PE_Acc([], "List of PE_Acc units")
+    mul_queue_depth = Param.Int(4, "Depth of PE_Mul queue")
+    acc_queue_depth = Param.Int(4, "Depth of PE_Acc queue")
+
+    X = Param.Addr("Pointer to input matrix X")
+    WQ = Param.Addr("Pointer to weight matrix WQ")
+    WK = Param.Addr("Pointer to weight matrix WK")
+    WV = Param.Addr("Pointer to weight matrix WV")
+    Q = Param.Addr("Pointer to Q")
+    K = Param.Addr("Pointer to K")
+    V = Param.Addr("Pointer to V")
+    Scores = Param.Addr("Pointer to Scores")
+    Prob = Param.Addr("Pointer to Probabilities")
+    Output = Param.Addr("Pointer to Final Output")
+    M = Param.Int("Seq length")
+    N = Param.Int("Seq length again")
+    Kdim = Param.Int("Head dim")

@@ -10,6 +10,7 @@ ARCH_ORDER = [
     "Parallel",
     "Gamma",
     "SparTA",
+    "Pade",
 ]
 
 
@@ -20,6 +21,9 @@ def build_report(results):
     df.index.name = "Architecture"
 
     df = df.reindex([a for a in ARCH_ORDER if a in df.index])
+
+    if "Pade" in df.index:
+        df.loc["Pade", "simTicks"] = round(df.loc["Pade", "simTicks"] / 8)
 
     if "Sequential" in df.index:
         seq_ticks = df.loc["Sequential", "simTicks"]
