@@ -5,13 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ARCH_ORDER = [
-    "Sequential",
-    "Parallel",
-    "Gamma",
-    "SparTA",
-    "Pade",
-]
+ARCH_ORDER = ["Sequential", "Parallel", "Gamma", "SpMard", "SparTA"]
 
 
 def build_report(results):

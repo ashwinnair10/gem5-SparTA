@@ -8,7 +8,8 @@ SimObject('SparTA.py', sim_objects=[
     'BaselineDriverParallel',
     'AcceleratorDriver',
     'GammaDriver',
-    'PadeDriver'
+    'PadeDriver',
+    'SpMardDriver'
 ])
 
 Source('PE_Mul.cc')
@@ -19,3 +20,4 @@ Source('baseline/parallel/BaselineDriverParallel.cc')
 Source('accelerator/AcceleratorDriver.cc')
 Source('baseline/gamma/GammaDriver.cc')
 Source('baseline/pade/PadeDriver.cc')
+Source('baseline/spmard/SpMardDriver.cc')
